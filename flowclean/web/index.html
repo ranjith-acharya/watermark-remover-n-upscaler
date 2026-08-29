@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flowclean</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="glyph">&#10022;</span>
+    <div>
+      <h1>flowclean</h1>
+      <p>Automatic watermark removal &amp; upscaling for AI-generated video</p>
+    </div>
+  </div>
+  <div id="env" class="env"></div>
+</header>
+
+<main>
+  <!-- 1. source -->
+  <section class="card" id="step-source">
+    <h2><span class="num">1</span> Choose a video</h2>
+    <div id="drop" class="drop">
+      <p class="drop-title">Drop a video here</p>
+      <p class="muted">or</p>
+      <div class="row">
+        <input type="file" id="file" accept="video/*" hidden>
+        <button class="btn" id="browse">Browse&hellip;</button>
+      </div>
+      <div class="row path-row">
+        <input type="text" id="path" placeholder="...or paste a full path, e.g. D:\Python\flow_wt_remover\01.mp4">
+        <button class="btn ghost" id="openPath">Open</button>
+      </div>
+    </div>
+    <div id="sourceInfo" class="hidden"></div>
+  </section>
+
+  <!-- 2. detection -->
+  <section class="card hidden" id="step-detect">
+    <h2><span class="num">2</span> What was found</h2>
+    <div id="detectInfo"></div>
+    <div class="preview">
+      <div class="preview-labels"><span>Original</span><span>Cleaned</span></div>
+      <img id="previewImg" alt="before and after preview">
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="zoom" checked> Zoom to watermark</label>
+        <span class="muted" id="previewNote"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. settings -->
+  <section class="card hidden" id="step-options">
+    <h2><span class="num">3</span> Settings</h2>
+    <div class="grid">
+      <label class="field">
+        <span>Remove watermark</span>
+        <select id="engine">
+          <option value="balanced" selected>Standard - inpaint (recommended)</option>
+          <option value="fast">Fast - edge interpolation</option>
+          <option value="ai">AI - LaMa (needs PyTorch)</option>
+        </select>
+        <small id="engineNote"></small>
+      </label>
+
+      <label class="field">
+        <span>Upscale to</span>
+        <select id="target">
+          <option value="off" selected>Off - keep original size</option>
+          <option value="1080p">1080p</option>
+          <option value="1440p">1440p</option>
+          <option value="4k">4K</option>
+          <option value="720p">720p (downscale)</option>
+        </select>
+        <small id="targetNote"></small>
+      </label>
+
+      <label class="field">
+        <span>Upscaler</span>
+        <select id="upscaleMode">
+          <option value="lanczos" selected>Lanczos - fast, no invented detail</option>
+          <option value="ai">Real-ESRGAN - slow, adds detail</option>
+        </select>
+        <small id="modeNote"></small>
+      </label>
+
+      <label class="field">
+        <span>AI model</span>
+        <select id="model"></select>
+        <small>Only used by the Real-ESRGAN upscaler.</small>
+      </label>
+
+      <label class="field">
+        <span>Encoder</span>
+        <select id="encoder"></select>
+        <small id="encoderNote"></small>
+      </label>
+
+      <label class="field">
+        <span>Quality <b id="qualityVal">20</b> <small>(lower = better)</small></span>
+        <input type="range" id="quality" min="14" max="30" value="20">
+        <small>18 is visually lossless; 23 is a good size/quality balance.</small>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="run">Process video</button>
+      <button class="btn ghost hidden" id="cancel">Cancel</button>
+      <span class="muted" id="planNote"></span>
+    </div>
+
+    <div id="progressWrap" class="hidden">
+      <div class="bar"><div id="bar"></div></div>
+      <div class="row"><span id="stage" class="muted"></span><span id="pct" class="muted"></span></div>
+    </div>
+  </section>
+
+  <!-- 4. result -->
+  <section class="card hidden" id="step-result">
+    <h2><span class="num">4</span> Result</h2>
+    <div id="resultInfo"></div>
+    <video id="resultVideo" controls playsinline></video>
+  </section>
+
+  <p class="footnote">
+    Removes the <em>visible</em> mark only. Flow output also carries SynthID, an
+    invisible provenance watermark that survives re-encoding and upscaling.
+  </p>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
