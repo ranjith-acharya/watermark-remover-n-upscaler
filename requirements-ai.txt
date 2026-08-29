@@ -1,0 +1,5 @@
+# Optional AI tiers (LaMa removal + Real-ESRGAN upscaling).
+# Installed by install_ai.bat; needs ~2.5 GB.
+--index-url https://download.pytorch.org/whl/cu124
+torch
+torchvision
