@@ -37,8 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="upscale target, keyed on the short side (default: off)")
     p.add_argument("--engine", default="auto", choices=list(ENGINES),
                    help="removal engine (default: auto - LaMa on GPU when available)")
-    p.add_argument("--upscaler", default="lanczos", choices=["lanczos", "ai"],
-                   help="how to upscale when --to is set (default: lanczos)")
+    p.add_argument("--upscaler", default="auto", choices=["auto", "lanczos", "ai"],
+                   help="how to upscale when --to is set "
+                        "(default: auto - Real-ESRGAN on a GPU, lanczos without one)")
     p.add_argument("--model", default=up.DEFAULT_MODEL, choices=list(up.MODELS))
     p.add_argument("--encoder", default="auto")
     p.add_argument("--quality", type=int, default=20, help="CRF-like, lower is better")

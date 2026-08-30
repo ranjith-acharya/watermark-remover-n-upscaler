@@ -51,6 +51,36 @@ def test_ai_mode_downgrades_when_not_actually_upscaling():
     assert plan.net_scale == 1
 
 
+def test_auto_upscaler_prefers_a_gpu(monkeypatch):
+    """A dedicated GPU is the default; the CPU path is the fallback."""
+    import unmark.upscale as up
+
+    monkeypatch.setattr(up, "torch_status",
+                        lambda: {"available": True, "cuda": True, "device": "gpu",
+                                 "reason": ""})
+    assert up.resolve_mode("auto") == "ai"
+    assert up.plan_upscale(720, 1280, "4k", "auto").mode == "ai"
+
+
+def test_auto_upscaler_falls_back_without_a_gpu(monkeypatch):
+    import unmark.upscale as up
+
+    monkeypatch.setattr(up, "torch_status",
+                        lambda: {"available": False, "cuda": False, "device": None,
+                                 "reason": "no torch"})
+    assert up.resolve_mode("auto") == "lanczos"
+    assert up.plan_upscale(720, 1280, "4k", "auto").mode == "lanczos"
+
+
+def test_explicit_modes_are_left_alone(monkeypatch):
+    import unmark.upscale as up
+
+    monkeypatch.setattr(up, "torch_status",
+                        lambda: {"available": True, "cuda": True, "device": "gpu",
+                                 "reason": ""})
+    assert up.resolve_mode("lanczos") == "lanczos"
+
+
 def test_unknown_target_is_rejected():
     with pytest.raises(ValueError):
         plan_upscale(720, 1280, "8k")

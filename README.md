@@ -217,29 +217,42 @@ rejected — that is the system working, not failing.
 Plenty of tools append a short branded outro. Trimming it is on by default, and
 it is only trimmed when three signatures line up at once:
 
-- **a hard cut** — the join is the sharpest frame-to-frame change in the clip
-- **a frozen tail** — what follows barely moves, judged in absolute terms
-- **a plain tail** — it carries far less detail than the footage before it
-- **a short tail** — seconds, not minutes
+- **it settles** — the clip ends on a near-frozen stretch
+- **it is joined** — a hard cut separates it from the footage before it
+- **it holds** — that frozen stretch is a large share of the card itself
+- **it is short** — seconds, not minutes
 
-Any one alone is ordinary footage; a held final shot freezes but has no cut into
-it, and an ordinary hard cut is not followed by stillness. Requiring all of them
-is what keeps real content from being cut. What was trimmed, and why, is always
-reported. `--keep-outro` turns it off.
+The frozen ending is the anchor, since it is the one part always present and easy
+to measure. The join is then the latest cut before it whose tail behaves like a
+card. What was trimmed, and why, is always reported; `--keep-outro` turns it off.
 
-Stillness is measured absolutely, not against the clip's own motion. A relative
-test reads well and fails badly on calm footage: slideshow-paced video has a
-median inter-frame motion near 0.2, which would demand its end card be about ten
-times stiller than genuinely frozen before it counted.
+Two things it deliberately avoids, both learned by getting them wrong:
+
+**Nothing is judged against the clip's own averages.** A relative test reads well
+and fails on exactly the footage people bring: on dark or calm video the
+clip-wide median sinks until the card cannot clear a bar derived from it. Five
+samples ending in the *identical* card were split three-to-two by that alone.
+Comparisons are against the seconds immediately before the join — the shot the
+card actually replaced.
+
+**The join is not the strongest cut.** An ordinary scene change in the content is
+routinely sharper; on one sample it scored 39.3 against the join's 38.8 and won,
+turning 5.4s of real footage into an "end card". The card is the *last* segment,
+not the most dramatic one, so candidates are tested from the end backwards.
 
 ## Upscaling
 
 Targets key on the **short** side, so vertical video scales the way you expect:
 a 720×1280 clip at `4k` becomes 2160×3840, not a squashed landscape frame.
 
+- **Real-ESRGAN** — runs on the GPU inside the frame loop, tiled at 256 px.
+  Reconstructs detail rather than interpolating it.
 - **Lanczos** — ffmpeg resamples on the way out. Sharp, effectively free, and
   invents no detail.
-- **Real-ESRGAN** — runs on the GPU inside the frame loop, tiled at 256 px.
+
+The default is `auto`, which uses a dedicated GPU whenever one is present and
+falls back to lanczos only when there is none. Same rule as the removal engine:
+the hardware you have is the default, not an option to go looking for.
 
 ---
 

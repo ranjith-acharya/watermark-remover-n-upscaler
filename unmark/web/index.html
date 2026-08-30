@@ -82,8 +82,9 @@
       <label class="field">
         <span>Upscaler</span>
         <select id="upscaleMode">
-          <option value="lanczos" selected>Lanczos - fast, no invented detail</option>
-          <option value="ai">Real-ESRGAN - slow, adds detail</option>
+          <option value="auto" selected>Auto - GPU when available (recommended)</option>
+          <option value="ai">Real-ESRGAN - GPU, adds detail</option>
+          <option value="lanczos">Lanczos - CPU, fast, no invented detail</option>
         </select>
         <small id="modeNote"></small>
       </label>
