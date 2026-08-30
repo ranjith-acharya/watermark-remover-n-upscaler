@@ -191,10 +191,6 @@ def _candidates(persistence: np.ndarray, strength: np.ndarray,
             continue
         if area / float(bw * bh) < 0.20:          # too straggly to be a glyph
             continue
-        edge_dist = min(x, y, W - (x + bw), H - (y + bh))
-        if edge_dist > 0.30 * min(W, H):          # watermarks hug an edge
-            continue
-
         blob = labels[y:y + bh, x:x + bw] == i
         persist_mean = float(persistence[y:y + bh, x:x + bw][blob].mean())
         strength_mean = float(strong[y:y + bh, x:x + bw][blob].mean())
@@ -208,6 +204,15 @@ def _candidates(persistence: np.ndarray, strength: np.ndarray,
             continue
 
         score = persist_mean * min(1.0, strength_mean / 8.0) * isolation
+
+        # Placement is a hint, never a veto. Most watermarks hug an edge, but
+        # plenty of tools stamp one across the middle of the frame, and an
+        # edge-distance cutoff drops those silently - the fallback then cleans a
+        # corner that was never marked. Isolation and dominance are what keep
+        # scene content out; this only orders the survivors.
+        edge_dist = min(x, y, W - (x + bw), H - (y + bh))
+        centrality = min(1.0, edge_dist / (0.5 * min(W, H)))
+        score *= 1.0 - 0.30 * centrality
         if min(x, W - (x + bw)) < 0.25 * W and min(y, H - (y + bh)) < 0.25 * H:
             score *= 1.2                          # corner placement is typical
         score *= 1.0 + 0.6 * _flow_prior(x, y, x + bw, y + bh, W, H)

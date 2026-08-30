@@ -64,19 +64,51 @@ def test_detection_survives_a_moving_scene_with_hard_edges():
 def test_static_scene_feature_does_not_become_a_second_region():
     """Regression: a short clip of a slow pan reported a girder as a watermark.
 
-    A bright static bar near the frame edge passes every size and placement
-    rule. What rules it out is that the response continues past its box, and
-    that it scores well below the real mark.
+    Structural geometry is every bit as persistent as an overlay, so
+    persistence alone cannot separate them. What does is that the response
+    carries on past whatever box the threshold cut it down to - the girder
+    belongs to a larger structure, and the ring around it is just as hot.
+
+    Note the fixture has to be structure, not an isolated bright rectangle. A
+    perfectly isolated, perfectly static rectangle *is* a watermark by every
+    property the detector can measure, and no rule should claim otherwise.
     """
     frames = []
     for i in range(40):
         frame = blend_glyph(clean_frame(i))[:, :, 0].copy()
-        frame[120:190, 290:300] = 245        # a hard, unmoving vertical feature
+        # A run of static structure: bright rails with gaps, so thresholding
+        # fragments it the way it fragmented the real girder.
+        for row in range(100, 240, 12):
+            frame[row:row + 5, 250:315] = 245
         frames.append(frame)
 
     regions = detect_in_frames(np.stack(frames)).regions
     assert len(regions) == 1, [r.to_dict() for r in regions]
     assert abs(regions[0].x - GLYPH_BOX[0]) <= 5
+
+
+def test_watermark_away_from_any_edge_is_still_found():
+    """Plenty of tools stamp a mark across the middle of the frame.
+
+    Placement is a ranking hint, never a veto: an edge-distance cutoff drops
+    these silently, and the preset fallback then cleans a corner that was
+    never marked.
+    """
+    frames = []
+    for i in range(40):
+        frame = clean_frame(i)
+        frame = blend_glyph(frame, box=(140, 220, 40, 40))     # dead centre
+        frames.append(frame[:, :, 0])
+
+    regions = detect_in_frames(np.stack(frames)).regions
+    assert regions, "a centred watermark must not be filtered out by placement"
+
+    # Bounds can come back partial: against a high-contrast moving background
+    # the threshold only keeps the glyph's strongest pixels. What this test
+    # pins down is that placement no longer vetoes the find at all.
+    got = regions[0]
+    cx, cy = got.x + got.w // 2, got.y + got.h // 2
+    assert 140 <= cx <= 180 and 220 <= cy <= 260, got.to_dict()
 
 
 def test_flow_preset_is_within_the_frame():
