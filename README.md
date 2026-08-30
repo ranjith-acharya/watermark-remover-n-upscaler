@@ -142,8 +142,8 @@ A watermark is a small overlay that stays put while the scene behind it changes.
 Each sampled frame is high-passed to strip the low-frequency picture, then the
 detector looks for pixels whose response stays strong in nearly *every* frame.
 Moving scene content only lights up a given pixel some of the time, so it falls
-away. What survives is filtered on size, shape and placement, plus two rules
-that matter more than they look:
+away. What survives is filtered on size and shape, plus two rules that matter
+more than they look:
 
 - **Isolation** — the response must stop at the region's edge. Static scene
   geometry (a girder, a doorway) is just as persistent, but carries on past the
@@ -155,6 +155,12 @@ that matter more than they look:
 Thresholds key off the noise floor rather than a percentile of the frame, so a
 single very bright static object cannot drag the threshold up until the real
 watermark falls below it and fragments.
+
+**Placement is a ranking hint, never a veto.** Corners score higher because most
+watermarks live there, but a mark stamped across the middle of the frame is
+found just the same — several tools do exactly that, and an edge-distance cutoff
+would drop them silently, leaving the fallback to clean a corner that was never
+marked.
 
 If nothing is found confidently, it falls back to Flow's known sparkle position
 (measured at x 0.800–0.867, y 0.888–0.925 of the frame) and says so in the UI.
