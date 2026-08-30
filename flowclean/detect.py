@@ -5,6 +5,12 @@ behind it changes. The detector exploits exactly that: high-pass each sampled
 frame to strip the low-frequency scene, then look for pixels whose response
 stays strong in nearly every frame. Moving scene edges score low because they
 only light up a given pixel some of the time.
+
+Nothing here is tied to a particular generator. Corner placement scores a little
+higher because most watermarks live there, but position never decides the
+outcome, and no vendor's geometry is privileged. When nothing is found the
+answer is "nothing found" - see `detect` on why guessing a position instead
+would be worse than useless.
 """
 from __future__ import annotations
 
@@ -153,16 +159,6 @@ def _isolation(seed: np.ndarray, x: int, y: int, bw: int, bh: int) -> float:
     return 1.0 - float((window[ring] > 0).mean())
 
 
-def _flow_prior(x0: int, y0: int, x1: int, y1: int, W: int, H: int) -> float:
-    """How closely a candidate matches Flow's sparkle geometry. 1.0 = exact."""
-    px0, py0, px1, py1 = FLOW_PRESET
-    ref = np.array([px0 * W, py0 * H, px1 * W, py1 * H])
-    got = np.array([x0, y0, x1, y1])
-    tol = 0.05 * max(W, H)
-    err = float(np.abs(got - ref).max())
-    return max(0.0, 1.0 - err / tol)
-
-
 def _candidates(persistence: np.ndarray, strength: np.ndarray,
                 min_persistence: float) -> list[dict]:
     H, W = persistence.shape
@@ -215,7 +211,6 @@ def _candidates(persistence: np.ndarray, strength: np.ndarray,
         score *= 1.0 - 0.30 * centrality
         if min(x, W - (x + bw)) < 0.25 * W and min(y, H - (y + bh)) < 0.25 * H:
             score *= 1.2                          # corner placement is typical
-        score *= 1.0 + 0.6 * _flow_prior(x, y, x + bw, y + bh, W, H)
 
         # _solidify pads the blob by GROW on every side, so the box grows with it.
         # Trim whatever falls outside the frame.
@@ -266,9 +261,15 @@ def detect_in_frames(frames: np.ndarray, scale: float = 1.0, radius: int = 12,
     return Detection(regions=regions, persistence=persistence)
 
 
-def detect(path: str, info: VideoInfo | None = None,
-           max_samples: int = MAX_SAMPLES, **kwargs) -> Detection:
-    """Detect watermarks in a video file, falling back to the Flow preset."""
+def detect(path: str, info: VideoInfo | None = None, max_samples: int = MAX_SAMPLES,
+           fallback: bool = False, **kwargs) -> Detection:
+    """Detect watermarks in a video file.
+
+    Returns no regions when nothing is found. `fallback=True` substitutes the
+    known Google Flow sparkle position instead, which is only meaningful if the
+    clip is known to be Flow output - on anything else it would clean an
+    untouched corner and leave the real watermark in place.
+    """
     info = info or probe(path)
 
     scale = min(1.0, MAX_ANALYSIS_DIM / max(info.width, info.height))
@@ -283,6 +284,6 @@ def detect(path: str, info: VideoInfo | None = None,
 
     radius = max(6, int(round(12 * (frames.shape[2] / 720.0))))
     det = detect_in_frames(frames, scale=scale, radius=radius, **kwargs)
-    if not det.regions:
+    if not det.regions and fallback:
         det.regions = [preset_region(info.width, info.height)]
     return det

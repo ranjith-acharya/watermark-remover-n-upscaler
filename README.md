@@ -1,10 +1,12 @@
 # flowclean — watermark remover & upscaler
 
-Removes the watermark from AI-generated video and upscales it, through a local
-web UI. Detection is automatic: you point it at a file and press one button.
+Removes the watermark from a video, trims the branded end card, and upscales,
+through a local web UI. Detection is automatic: you point it at a file and press
+one button.
 
-Built for Google Flow / Veo output (the sparkle glyph in the corner), but the
-detector is generic — anything static and overlaid is found the same way.
+Nothing here is tied to a particular tool. Flow's corner sparkle, a Vizard text
+plate in the middle of the frame, anyone else's logo — if it is static and
+overlaid while the picture behind it moves, it is found the same way.
 
 Everything runs on your own machine. Nothing is uploaded anywhere.
 
@@ -116,6 +118,8 @@ start.bat 01.mp4 --to 1080p --upscaler ai   Real-ESRGAN instead of lanczos
 start.bat clip1.mp4 clip2.mp4 clip3.mp4     batch, unattended
 start.bat --detect 01.mp4               report findings, change nothing
 start.bat --keep-watermark 01.mp4 --to 4k   upscale only
+start.bat clip.mp4 --keep-outro         keep the branded end card
+start.bat clip.mp4 --flow-preset        assume Flow's corner if nothing is found
 start.bat --env                         what this machine can do
 ```
 
@@ -162,8 +166,10 @@ found just the same — several tools do exactly that, and an edge-distance cuto
 would drop them silently, leaving the fallback to clean a corner that was never
 marked.
 
-If nothing is found confidently, it falls back to Flow's known sparkle position
-(measured at x 0.800–0.867, y 0.888–0.925 of the frame) and says so in the UI.
+**If nothing is found, nothing is removed.** Guessing a likely corner would
+clean untouched footage *and* leave the real watermark in place — a wrong answer
+that looks like a successful run. The known Google Flow position is available via
+`--flow-preset` when you already know the clip is Flow output.
 
 ## How removal works
 
@@ -197,6 +203,20 @@ used at all:
 Fail any one and the matte is discarded, the fill engine stands alone, and the
 result reports which happened and why. On dark, flat footage it is normally
 rejected — that is the system working, not failing.
+
+## End cards
+
+Plenty of tools append a short branded outro. Trimming it is on by default, and
+it is only trimmed when three signatures line up at once:
+
+- **a hard cut** — the join is the sharpest frame-to-frame change in the clip
+- **a frozen tail** — what follows barely moves compared with the rest
+- **a short tail** — seconds, not minutes
+
+Any one alone is ordinary footage; a held final shot freezes but has no cut into
+it, and an ordinary hard cut is not followed by stillness. Requiring all three is
+what keeps real content from being cut. What was trimmed, and why, is always
+reported. `--keep-outro` turns it off.
 
 ## Upscaling
 
@@ -303,8 +323,16 @@ cannot.
 **Port already in use** — `start.bat --port 9000`.
 
 **Detection picked the wrong thing** — run `start.bat --detect yourfile.mp4` to
-see what it found. Detection is weakest on very short clips of a nearly static
-camera, where scene features persist as convincingly as an overlay does.
+see what it found, watermark and end card both. Detection is weakest on very
+short clips of a nearly static camera, where scene features persist as
+convincingly as an overlay does.
+
+**The cleaned area looks smeared** — this is the real limit of the tool. Removal
+has to invent whatever was behind the mark, and how well that works depends
+almost entirely on what it covers. A small mark over sky, wall or blur is
+invisible afterwards. A large opaque plate sitting over a face is not: no
+single-frame inpainter reconstructs a mouth convincingly, and `--engine ai`
+will not rescue it. Nothing in the settings fixes that case today.
 
 ---
 
