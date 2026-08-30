@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from flowclean.upscale import DEFAULT_MODEL, MODELS, TARGETS, plan_upscale, resize_to
+from unmark.upscale import DEFAULT_MODEL, MODELS, TARGETS, plan_upscale, resize_to
 from conftest import clean_frame
 
 

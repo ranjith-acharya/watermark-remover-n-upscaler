@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from flowclean.detect import FLOW_PRESET, detect, detect_in_frames, preset_region
+from unmark.detect import FLOW_PRESET, detect, detect_in_frames, preset_region
 from conftest import GLYPH_BOX, blend_glyph, clean_frame, diamond_mask
 
 
