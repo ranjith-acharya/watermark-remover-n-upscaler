@@ -6,7 +6,7 @@ if not exist ".venv\Scripts\python.exe" (
   .venv\Scripts\python.exe -m pip install -q --upgrade pip
   .venv\Scripts\python.exe -m pip install -q -r requirements.txt || goto :fail
 )
-.venv\Scripts\python.exe -m flowclean %*
+.venv\Scripts\python.exe -m unmark %*
 goto :eof
 :fail
 echo.

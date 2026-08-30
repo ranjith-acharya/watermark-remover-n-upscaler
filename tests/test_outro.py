@@ -9,8 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from flowclean import ffmpegio
-from flowclean.outro import detect_outro
+from unmark import ffmpegio
+from unmark.outro import detect_outro
 from conftest import FPS, _write_clip, clean_frame
 
 

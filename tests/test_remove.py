@@ -4,8 +4,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from flowclean.detect import Region
-from flowclean.remove import (ENGINES, Remover, estimate_matte, fill_fast,
+from unmark.detect import Region
+from unmark.remove import (ENGINES, Remover, estimate_matte, fill_fast,
                               fill_inpaint, prepare_region, unblend)
 from conftest import (GLYPH_ALPHA, GLYPH_BOX, GLYPH_COLOR, blend_glyph, clean_frame,
                       diamond_mask)
@@ -129,7 +129,7 @@ def test_matte_is_rejected_when_the_solve_is_corrupted():
     """The seam check must be independent enough to catch a wrong alpha/colour."""
     import copy
 
-    from flowclean.remove import _seam_score
+    from unmark.remove import _seam_score
 
     prep, rois = _roi_stack(busy=True)
     good = estimate_matte(rois, prep.mask)

@@ -30,7 +30,7 @@ UPLOADS = ROOT / "uploads"
 OUTPUT = ROOT / "output"
 WEB = Path(__file__).resolve().parent / "web"
 
-app = FastAPI(title="flowclean")
+app = FastAPI(title="unmark")
 
 _sources: dict[str, "Source"] = {}
 _jobs: dict[str, "Job"] = {}

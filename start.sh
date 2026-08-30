@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch flowclean on Linux or macOS. Windows users: use start.bat instead.
+# Launch unmark on Linux or macOS. Windows users: use start.bat instead.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -16,4 +16,4 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
-exec "$PY" -m flowclean "$@"
+exec "$PY" -m unmark "$@"
