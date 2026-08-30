@@ -26,6 +26,8 @@ from .ffmpegio import VideoInfo, probe, read_gray_frames
 FLOW_PRESET = (0.8000, 0.8875, 0.8667, 0.9250)  # x0, y0, x1, y1
 
 MIN_ISOLATION = 0.90    # how quiet the ring around a candidate must be
+MIN_STRENGTH = 15.0     # a watermark has to actually stand out from the picture
+STRENGTH_FULL = 30.0    # response at which a candidate scores full marks
 DOMINANCE = 0.90        # secondary regions must score this share of the best
 MAX_ANALYSIS_DIM = 1280
 MAX_SAMPLES = 64
@@ -199,7 +201,14 @@ def _candidates(persistence: np.ndarray, strength: np.ndarray,
         if isolation < MIN_ISOLATION:
             continue
 
-        score = persist_mean * min(1.0, strength_mean / 8.0) * isolation
+        # Faint static texture in very dark corners is persistent and isolated
+        # too, so strength has to carry weight rather than saturate immediately.
+        # An earlier version capped this at a response of 8, which scored a
+        # 13-level compression artifact identically to an 87-level watermark and
+        # let the dominance rule wave it through.
+        if strength_mean < MIN_STRENGTH:
+            continue
+        score = persist_mean * min(1.0, strength_mean / STRENGTH_FULL) * isolation
 
         # Placement is a hint, never a veto. Most watermarks hug an edge, but
         # plenty of tools stamp one across the middle of the frame, and an

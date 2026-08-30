@@ -65,6 +65,26 @@ def test_a_held_final_shot_is_not_an_end_card(clip_ending_on_a_held_shot):
     assert detect_outro(str(clip_ending_on_a_held_shot)) is None
 
 
+@pytest.fixture(scope="session")
+def calm_clip_with_card(tmp_path_factory):
+    """Slideshow-paced footage: barely any motion, then a card.
+
+    Regression. Stillness used to be judged against the clip's own median
+    motion, so a calm clip set an impossible bar for its own end card - the
+    quieter the footage, the more frozen the card had to be to qualify.
+    """
+    path = tmp_path_factory.mktemp("outro") / "calm.mp4"
+    body = [clean_frame(i // 6) for i in range(120)]
+    return _write_clip(path, body + [_card().copy() for _ in range(48)])
+
+
+def test_calm_footage_does_not_hide_its_end_card(calm_clip_with_card):
+    card = detect_outro(str(calm_clip_with_card))
+    assert card is not None, "a calm clip must not mask its own end card"
+    assert abs(card.start_frame - 120) <= 4, card.to_dict()
+    assert 1.5 <= card.seconds <= 2.5
+
+
 def test_reason_is_reported(clip_with_card):
     card = detect_outro(str(clip_with_card))
     assert card.reason and "cut" in card.reason
