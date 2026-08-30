@@ -84,7 +84,63 @@ def test_cancellation_stops_early(marked_clip, tmp_path):
 
 def test_doing_nothing_is_rejected():
     with pytest.raises(ValueError):
-        Options(remove=False, target="off").validate()
+        Options(remove=False, target="off", trim_outro=False).validate()
+
+
+def test_trimming_alone_is_a_valid_job():
+    Options(remove=False, target="off", trim_outro=True).validate()
+
+
+def test_end_card_is_trimmed_from_the_output(marked_clip, tmp_path, tmp_path_factory):
+    """A clip with a branded card should come out shorter, card gone."""
+    from conftest import _write_clip
+    from flowclean.outro import detect_outro
+
+    card = np.full((480, 320, 3), 18, dtype=np.uint8)
+    card[218:262, 90:230] = 210
+    src = _write_clip(tmp_path / "carded.mp4",
+                      [clean_frame(i) for i in range(90)] +
+                      [card.copy() for _ in range(48)])
+    assert detect_outro(str(src)) is not None, "fixture must actually have a card"
+
+    out = tmp_path / "trimmed.mp4"
+    result = run(src, out, Options(remove=False, target="off", trim_outro=True))
+
+    assert result.outro is not None
+    assert result.frames < ffmpegio.probe(str(src)).n_frames
+    assert abs(result.frames - 90) <= 3, result.frames
+    # The final frame must be real footage, not the flat card.
+    assert _frame(out, result.frames - 1).std() > 20
+
+
+def test_end_card_is_kept_when_trimming_is_off(marked_clip, tmp_path):
+    from conftest import _write_clip
+
+    card = np.full((480, 320, 3), 18, dtype=np.uint8)
+    card[218:262, 90:230] = 210
+    src = _write_clip(tmp_path / "carded2.mp4",
+                      [clean_frame(i) for i in range(90)] +
+                      [card.copy() for _ in range(48)])
+
+    result = run(src, tmp_path / "kept.mp4",
+                 Options(remove=False, target="1080p", trim_outro=False))
+    assert result.outro is None
+    assert result.frames == ffmpegio.probe(str(src)).n_frames
+
+
+def test_no_watermark_and_nothing_else_to_do_is_an_error(clean_clip, tmp_path):
+    """Guessing a position would clean untouched footage and miss the real mark."""
+    with pytest.raises(ValueError, match="no watermark"):
+        run(clean_clip, tmp_path / "x.mp4",
+            Options(remove=True, target="off", trim_outro=False))
+
+
+def test_no_watermark_still_upscales(clean_clip, tmp_path):
+    result = run(clean_clip, tmp_path / "up.mp4",
+                 Options(remove=True, target="1080p", trim_outro=False))
+    assert result.regions == []
+    assert result.engine == "none"
+    assert result.plan["out_w"] == 1080
 
 
 def test_default_output_name_describes_the_job(tmp_path):

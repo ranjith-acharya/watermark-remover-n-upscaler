@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import ffmpegio, lama as lama_mod, upscale as up
 from .detect import Detection, Region, detect
+from .outro import Outro, detect_outro
 from .pipeline import Cancelled, Options, Result, default_output, run
 from .remove import ENGINES, Remover, prepare_region
 
@@ -42,6 +43,7 @@ class Source:
     path: str
     info: ffmpegio.VideoInfo
     detection: Detection
+    outro: Outro | None = None
 
     def payload(self) -> dict:
         return {
@@ -52,6 +54,7 @@ class Source:
             "label": self.info.label,
             "regions": [r.to_dict() for r in self.detection.regions],
             "detected": self.detection.found,
+            "outro": self.outro.to_dict() if self.outro else None,
         }
 
 
@@ -90,7 +93,9 @@ def _load_source(path: str) -> Source:
         raise HTTPException(400, f"file not found: {p}")
     info = ffmpegio.probe(str(p))
     det = detect(str(p), info=info)
-    src = Source(id=uuid.uuid4().hex[:12], path=str(p), info=info, detection=det)
+    card = detect_outro(str(p), info)
+    src = Source(id=uuid.uuid4().hex[:12], path=str(p), info=info, detection=det,
+                 outro=card)
     with _lock:
         _sources[src.id] = src
     return src
@@ -171,7 +176,8 @@ def preview(source_id: str, engine: str = "balanced", zoom: int = 1) -> Response
 
     regions = src.detection.regions
     prepared = [prepare_region(r, src.info.width, src.info.height) for r in regions]
-    cleaned = Remover(prepared, engine if engine != "ai" else "balanced").apply(frame)
+    cleaned = (Remover(prepared, engine if engine != "ai" else "balanced").apply(frame)
+               if prepared else frame)
 
     if zoom and regions:
         before = _zoom(_annotate(frame, regions), regions[0])
@@ -190,11 +196,13 @@ def preview(source_id: str, engine: str = "balanced", zoom: int = 1) -> Response
 def process(source_id: str = Form(...), engine: str = Form("balanced"),
             target: str = Form("off"), upscale_mode: str = Form("lanczos"),
             model: str = Form(up.DEFAULT_MODEL), encoder: str = Form("auto"),
-            quality: int = Form(20), remove: bool = Form(True)) -> dict:
+            quality: int = Form(20), remove: bool = Form(True),
+            trim_outro: bool = Form(True)) -> dict:
     src = _get_source(source_id)
-    options = Options(remove=remove, engine=engine, target=target,
-                      upscale_mode=upscale_mode, model=model, encoder=encoder,
-                      quality=quality, regions=src.detection.regions if remove else None)
+    options = Options(remove=remove and bool(src.detection.regions), engine=engine,
+                      target=target, upscale_mode=upscale_mode, model=model,
+                      encoder=encoder, quality=quality, trim_outro=trim_outro,
+                      regions=src.detection.regions if remove else None)
     try:
         options.validate()
     except ValueError as exc:

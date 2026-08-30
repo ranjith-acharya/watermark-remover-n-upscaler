@@ -96,10 +96,27 @@ function renderSource() {
   updateTargetNote();
 }
 
+function renderOutro() {
+  const o = source.outro;
+  const box = $('outroInfo');
+  show(box, !!o);
+  if (!o) return;
+  box.className = 'notice';
+  box.innerHTML = `<b>End card found</b> &mdash; ${o.seconds}s from ${o.start_time}s
+    (${Math.round(o.confidence * 100)}% confidence).
+    <span class="muted">${o.reason}</span>`;
+}
+
 function renderDetection() {
+  renderOutro();
   const r = source.regions[0];
   if (!r) {
-    $('detectInfo').innerHTML = '<span class="badge err">No watermark found</span>';
+    $('detectInfo').innerHTML =
+      `<span class="badge warn">No watermark found</span>
+       <div class="notice warn">Nothing static and overlaid was detected, so removal
+       will be skipped rather than guessing a position and damaging good footage.
+       ${source.outro ? 'The end card above can still be trimmed.' : ''}
+       You can still upscale.</div>`;
     return;
   }
   const detected = r.source === 'detected';
@@ -169,6 +186,7 @@ async function startJob() {
   body.set('model', $('model').value);
   body.set('encoder', $('encoder').value);
   body.set('quality', $('quality').value);
+  body.set('trim_outro', $('trimOutro').checked ? 'true' : 'false');
 
   try {
     const job = await post('/api/process', body);
@@ -205,7 +223,10 @@ function renderResult(res) {
     <dl class="kv">
       <dt>Saved to</dt><dd class="mono">${res.output}</dd>
       <dt>Resolution</dt><dd>${p.out_w} x ${p.out_h}${p.mode === 'ai' ? ' (Real-ESRGAN)' : ''}</dd>
-      <dt>Removal</dt><dd>${res.engine} &mdash; <span class="muted">${matte}</span></dd>
+      <dt>Removal</dt><dd>${res.engine === 'none' ? 'skipped - nothing detected'
+          : `${res.engine} &mdash; <span class="muted">${matte}</span>`}</dd>
+      ${res.outro ? `<dt>End card</dt><dd>trimmed ${res.outro.seconds}s from
+          ${res.outro.start_time}s</dd>` : ''}
       <dt>Encoder</dt><dd>${res.encoder}</dd>
       <dt>Time</dt><dd>${res.seconds}s for ${res.frames} frames (${res.fps} fps)</dd>
     </dl>`;

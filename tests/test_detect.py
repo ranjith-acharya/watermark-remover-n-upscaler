@@ -29,8 +29,16 @@ def test_mask_is_solid_not_a_ring(marked_clip):
     assert region.mask[cy, cx]
 
 
-def test_no_watermark_falls_back_to_preset(clean_clip):
+def test_no_watermark_reports_nothing_rather_than_guessing(clean_clip):
+    """Guessing a position is worse than useless on a clip from another tool:
+    it cleans an untouched corner and leaves the real watermark in place."""
     det = detect(str(clean_clip))
+    assert not det.found
+    assert det.regions == []
+
+
+def test_flow_preset_is_available_on_request(clean_clip):
+    det = detect(str(clean_clip), fallback=True)
     assert not det.found
     assert det.regions[0].source == "preset"
 

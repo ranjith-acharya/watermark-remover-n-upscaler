@@ -15,6 +15,7 @@ from pathlib import Path
 from . import upscale as up
 from .detect import detect
 from .ffmpegio import FFmpegError, encoder_report, have_ffmpeg, probe
+from .outro import detect_outro
 from .pipeline import Options, default_output, run
 from .remove import ENGINES
 
@@ -43,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--quality", type=int, default=20, help="CRF-like, lower is better")
     p.add_argument("--keep-watermark", action="store_true",
                    help="upscale only, leave the watermark alone")
+    p.add_argument("--keep-outro", action="store_true",
+                   help="keep a branded end card instead of trimming it")
+    p.add_argument("--flow-preset", action="store_true",
+                   help="if nothing is detected, assume Google Flow's corner sparkle")
     p.add_argument("--detect", action="store_true", help="report detection and exit")
     p.add_argument("--env", action="store_true", help="report capabilities and exit")
     p.add_argument("--host", default="127.0.0.1")
@@ -81,8 +86,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.detect:
         for path in args.input:
-            det = detect(path)
-            print(path, json.dumps([r.to_dict() for r in det.regions]))
+            det = detect(path, fallback=args.flow_preset)
+            regions = [r.to_dict() for r in det.regions]
+            print(f"{path}: {json.dumps(regions) if regions else 'no watermark found'}")
+            card = detect_outro(path)
+            print(f"  end card: {json.dumps(card.to_dict()) if card else 'none'}")
         return 0
 
     if args.output and len(args.input) > 1:
@@ -91,7 +99,8 @@ def main(argv: list[str] | None = None) -> int:
 
     options = Options(remove=not args.keep_watermark, engine=args.engine, target=args.to,
                       upscale_mode=args.upscaler, model=args.model,
-                      encoder=args.encoder, quality=args.quality)
+                      encoder=args.encoder, quality=args.quality,
+                      trim_outro=not args.keep_outro, flow_preset=args.flow_preset)
     try:
         options.validate()
     except ValueError as exc:
@@ -112,8 +121,15 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(f"  {result.plan['out_w']}x{result.plan['out_h']} via {result.encoder}, "
               f"{result.frames} frames in {result.seconds}s ({result.fps:.1f} fps)")
-        for region in result.regions:
-            print(f"  watermark: {region}")
+        if result.regions:
+            for region in result.regions:
+                print(f"  watermark: {region}")
+        else:
+            print("  watermark: none detected - removal skipped")
+        if result.outro:
+            o = result.outro
+            print(f"  end card:  trimmed {o['seconds']}s from {o['start_time']}s "
+                  f"(confidence {o['confidence']})")
         if result.matte and result.matte.get("note"):
             print(f"  matte: {result.matte['note']}")
     return 1 if failures else 0

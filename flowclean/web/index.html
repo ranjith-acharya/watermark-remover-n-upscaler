@@ -41,6 +41,7 @@
   <section class="card hidden" id="step-detect">
     <h2><span class="num">2</span> What was found</h2>
     <div id="detectInfo"></div>
+    <div id="outroInfo" class="hidden"></div>
     <div class="preview">
       <div class="preview-labels"><span>Original</span><span>Cleaned</span></div>
       <img id="previewImg" alt="before and after preview">
@@ -104,6 +105,9 @@
         <small>18 is visually lossless; 23 is a good size/quality balance.</small>
       </label>
     </div>
+
+    <label class="toggle standalone"><input type="checkbox" id="trimOutro" checked>
+      Trim the branded end card when one is found</label>
 
     <div class="actions">
       <button class="btn primary" id="run">Process video</button>
