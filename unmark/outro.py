@@ -6,10 +6,18 @@ once, and requiring all three is what keeps a legitimately quiet final shot from
 being mistaken for one:
 
   a hard cut     the join is the sharpest frame-to-frame change in the clip
-  a frozen tail  what follows barely moves compared with the rest
+  a frozen tail  what follows barely moves, in absolute terms
+  a plain tail   it carries much less detail than the footage before it
   a short tail   it lasts seconds, not minutes
 
 Any one of those alone is common in ordinary footage. Together they are not.
+
+Stillness is deliberately judged absolutely rather than against the clip's own
+motion. A relative test looks reasonable and fails badly on calm footage: a
+slideshow-paced clip has a median inter-frame motion near 0.2, which would demand
+the end card be around ten times stiller than genuinely frozen to qualify. The
+question is whether the tail is frozen, not whether it is frozen relative to how
+lively the rest happened to be.
 """
 from __future__ import annotations
 
@@ -24,8 +32,8 @@ MAX_OUTRO_SECONDS = 10.0
 MIN_OUTRO_SECONDS = 0.3
 SEARCH_FRACTION = 0.30      # only look for the join in the last part of the clip
 CUT_RATIO = 3.0             # the join must stand out this far above typical motion
-STILL_RATIO = 0.25          # the tail must be this much calmer than the clip
-STILL_ABSOLUTE = 4.0        # ...and quiet in absolute terms too
+STILL_ABSOLUTE = 2.0        # the tail must be near-frozen, judged in absolute terms
+DETAIL_RATIO = 0.65         # ...and visibly plainer than the footage before it
 
 
 @dataclass
@@ -81,9 +89,18 @@ def detect_outro(path: str, info: VideoInfo | None = None) -> Outro | None:
     tail_motion = float(np.abs(np.diff(tail, axis=0)).mean())
     tail_seconds = len(tail) / info.fps
 
+    # A branded card is plainer than real footage: flat ground, a logo, a line
+    # of text. Comparing spatial detail against the body of the clip catches
+    # that, and it is what separates a card from a held final shot, which
+    # freezes but goes on looking like the film it belongs to.
+    body_detail = float(frames[:start].std())
+    tail_detail = float(tail.std())
+
     if cut_strength < max(CUT_RATIO * typical, 10.0):
         return None
-    if tail_motion > min(STILL_RATIO * typical, STILL_ABSOLUTE):
+    if tail_motion > STILL_ABSOLUTE:
+        return None
+    if body_detail > 1e-6 and tail_detail > DETAIL_RATIO * body_detail:
         return None
     if not (MIN_OUTRO_SECONDS <= tail_seconds <= MAX_OUTRO_SECONDS):
         return None
@@ -93,9 +110,10 @@ def detect_outro(path: str, info: VideoInfo | None = None) -> Outro | None:
     start_frame = int(round(start * scale))
     remaining = max(0, info.n_frames - start_frame)
 
-    cut_score = min(1.0, cut_strength / (CUT_RATIO * typical))
-    still_score = min(1.0, (STILL_RATIO * typical) / max(tail_motion, 1e-3))
-    confidence = float(min(1.0, 0.5 * cut_score + 0.5 * min(1.0, still_score)))
+    cut_score = min(1.0, cut_strength / max(CUT_RATIO * typical, 10.0))
+    still_score = min(1.0, STILL_ABSOLUTE / max(tail_motion, 1e-3))
+    plain_score = min(1.0, (DETAIL_RATIO * body_detail) / max(tail_detail, 1e-3))
+    confidence = float(min(1.0, (cut_score + still_score + plain_score) / 3.0))
 
     return Outro(
         start_frame=start_frame,
@@ -103,6 +121,7 @@ def detect_outro(path: str, info: VideoInfo | None = None) -> Outro | None:
         frames=remaining,
         seconds=remaining / info.fps,
         confidence=confidence,
-        reason=(f"hard cut {cut_strength:.0f} vs typical {typical:.1f}, "
-                f"then {tail_motion:.2f} motion over {tail_seconds:.1f}s"),
+        reason=(f"hard cut {cut_strength:.0f} vs typical {typical:.1f}, then "
+                f"{tail_motion:.2f} motion and {tail_detail:.0f} detail "
+                f"(vs {body_detail:.0f}) over {tail_seconds:.1f}s"),
     )

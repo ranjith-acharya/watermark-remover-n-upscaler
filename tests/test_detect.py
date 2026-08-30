@@ -95,6 +95,33 @@ def test_static_scene_feature_does_not_become_a_second_region():
     assert abs(regions[0].x - GLYPH_BOX[0]) <= 5
 
 
+def test_faint_static_texture_in_a_dark_area_is_not_a_watermark():
+    """Regression: a near-black corner produced two spurious regions.
+
+    Static texture in shadow is as persistent and as isolated as a real
+    overlay - the only thing separating them is how far it stands out from the
+    picture, and the score used to saturate that measurement at a response of
+    8, scoring a 13-level artifact the same as an 87-level watermark.
+
+    The shadow has to be a soft vignette rather than a pasted rectangle: a hard
+    unmoving edge is a static overlay by every definition here, and flagging it
+    would be correct behaviour on a wrong fixture.
+    """
+    height, width = 480, 320
+    xx = np.mgrid[0:height, 0:width][1].astype(np.float32)
+    vignette = np.clip(xx / 70.0, 0.0, 1.0)      # crushed at the left, no hard edge
+
+    frames = []
+    for i in range(40):
+        frame = blend_glyph(clean_frame(i))[:, :, 0].astype(np.float32) * vignette
+        frame[44:58, 8:22] += 13.0               # faint unmoving speck in the shadow
+        frames.append(np.clip(frame, 0, 255).astype(np.uint8))
+
+    regions = detect_in_frames(np.stack(frames)).regions
+    assert len(regions) == 1, [r.to_dict() for r in regions]
+    assert abs(regions[0].x - GLYPH_BOX[0]) <= 5
+
+
 def test_watermark_away_from_any_edge_is_still_found():
     """Plenty of tools stamp a mark across the middle of the frame.
 

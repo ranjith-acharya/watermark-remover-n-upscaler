@@ -218,13 +218,19 @@ Plenty of tools append a short branded outro. Trimming it is on by default, and
 it is only trimmed when three signatures line up at once:
 
 - **a hard cut** — the join is the sharpest frame-to-frame change in the clip
-- **a frozen tail** — what follows barely moves compared with the rest
+- **a frozen tail** — what follows barely moves, judged in absolute terms
+- **a plain tail** — it carries far less detail than the footage before it
 - **a short tail** — seconds, not minutes
 
 Any one alone is ordinary footage; a held final shot freezes but has no cut into
-it, and an ordinary hard cut is not followed by stillness. Requiring all three is
-what keeps real content from being cut. What was trimmed, and why, is always
+it, and an ordinary hard cut is not followed by stillness. Requiring all of them
+is what keeps real content from being cut. What was trimmed, and why, is always
 reported. `--keep-outro` turns it off.
+
+Stillness is measured absolutely, not against the clip's own motion. A relative
+test reads well and fails badly on calm footage: slideshow-paced video has a
+median inter-frame motion near 0.2, which would demand its end card be about ten
+times stiller than genuinely frozen before it counted.
 
 ## Upscaling
 
