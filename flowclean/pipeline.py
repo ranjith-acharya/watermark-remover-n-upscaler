@@ -15,6 +15,7 @@ import numpy as np
 
 from . import ffmpegio, lama as lama_mod, upscale as up
 from .detect import Detection, Region, detect
+from .outro import Outro, detect_outro
 from .remove import ENGINES, PreparedRegion, Remover, estimate_matte, prepare_region
 
 MATTE_SAMPLES = 96
@@ -29,6 +30,8 @@ class Options:
     model: str = up.DEFAULT_MODEL
     encoder: str = "auto"
     quality: int = 20
+    trim_outro: bool = True              # drop a detected branded end card
+    flow_preset: bool = False            # guess Flow's corner if nothing is found
     regions: list[Region] | None = None   # skip detection when supplied
 
     def validate(self) -> None:
@@ -38,8 +41,9 @@ class Options:
             raise ValueError(f"target must be one of {list(up.TARGETS)}")
         if self.upscale_mode not in ("lanczos", "ai"):
             raise ValueError("upscale_mode must be 'lanczos' or 'ai'")
-        if not self.remove and self.target == "off":
-            raise ValueError("nothing to do: removal is off and no upscale target is set")
+        if not self.remove and self.target == "off" and not self.trim_outro:
+            raise ValueError(
+                "nothing to do: removal and trimming are off, and no upscale target is set")
 
 
 @dataclass
@@ -51,6 +55,7 @@ class Result:
     engine: str = ""
     encoder: str = ""
     matte: dict | None = None
+    outro: dict | None = None
     frames: int = 0
     seconds: float = 0.0
 
@@ -78,7 +83,7 @@ def build_regions(path: str, info: ffmpegio.VideoInfo, options: Options,
         regions = options.regions
     else:
         on_progress("detect", 0.0, "Scanning for watermarks")
-        detection = detect(path, info=info)
+        detection = detect(path, info=info, fallback=options.flow_preset)
         regions = detection.regions
 
     prepared = [prepare_region(r, info.width, info.height) for r in regions]
@@ -117,10 +122,28 @@ def run(input_path: str | Path, output_path: str | Path, options: Options | None
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     info = ffmpegio.probe(input_path)
+
+    outro = None
+    keep_frames = info.n_frames or 0
+    if options.trim_outro:
+        on_progress("outro", 0.0, "Checking for a branded end card")
+        outro = detect_outro(input_path, info)
+        if outro is not None:
+            keep_frames = outro.start_frame
+
     prepared: list[PreparedRegion] = []
     detection = None
     if options.remove:
         prepared, detection = build_regions(input_path, info, options, on_progress)
+        if not prepared:
+            # Never invent a location. Cleaning a guessed corner on a clip whose
+            # watermark is elsewhere leaves the real mark untouched and quietly
+            # damages footage that was fine.
+            if options.target == "off" and outro is None:
+                raise ValueError(
+                    "no watermark was detected, and no upscale or trim was requested - "
+                    "nothing to do")
+            on_progress("detect", 0.0, "No watermark found; removal skipped")
 
     lama = None
     if options.remove and options.engine == "ai" and prepared:
@@ -151,13 +174,15 @@ def run(input_path: str | Path, output_path: str | Path, options: Options | None
         copy_audio=info.has_audio, out_w=plan.out_w, out_h=plan.out_h,
         encoder=encoder_name, quality=options.quality)
 
-    total = info.n_frames or 0
+    total = keep_frames or info.n_frames or 0
     started = time.time()
     count = 0
     try:
         for frame in ffmpegio.iter_bgr_frames(reader, info.width, info.height):
             if should_cancel():
                 raise Cancelled("cancelled by user")
+            if keep_frames and count >= keep_frames:
+                break            # end card reached; stop before it
             if remover is not None:
                 frame = remover.apply(frame)
             if net is not None:
@@ -208,6 +233,7 @@ def run(input_path: str | Path, output_path: str | Path, options: Options | None
         engine=(remover.engine if remover else "none"),
         encoder=encoder_name,
         matte=matte_summary,
+        outro=outro.to_dict() if outro else None,
         frames=count,
         seconds=round(elapsed, 2),
     )

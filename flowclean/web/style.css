@@ -142,3 +142,11 @@ video { width: 100%; max-width: 420px; display: block; margin: 16px auto 0; bord
   color: #fca5a5; border-radius: 8px; padding: 12px 14px; margin-top: 12px;
   font-size: 13px; white-space: pre-wrap;
 }
+
+.toggle.standalone { margin-top: 18px; }
+.notice {
+  margin-top: 14px; padding: 11px 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel-2); font-size: 13px;
+}
+.notice b { color: var(--text); }
+.notice.warn { border-color: #6b5a1f; background: rgba(250, 204, 21, .07); }
