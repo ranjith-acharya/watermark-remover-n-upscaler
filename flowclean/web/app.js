@@ -122,7 +122,7 @@ function renderDetection() {
   const detected = r.source === 'detected';
   const badge = detected
     ? `<span class="badge ok">Detected &middot; ${Math.round(r.confidence * 100)}% confidence</span>`
-    : '<span class="badge warn">Not detected - using the known Flow position</span>';
+    : '<span class="badge warn">Nothing detected - using the requested Flow preset</span>';
   const extra = source.regions.length > 1
     ? ` <span class="muted">(+${source.regions.length - 1} more region)</span>` : '';
   $('detectInfo').innerHTML = `${badge}${extra}
