@@ -71,7 +71,22 @@ def test_remover_does_not_mutate_its_input():
 def test_unknown_engine_is_rejected():
     with pytest.raises(ValueError):
         Remover([], "magic")
-    assert set(ENGINES) == {"fast", "balanced", "ai"}
+    assert set(ENGINES) == {"auto", "fast", "balanced", "ai"}
+
+
+def test_auto_uses_the_model_when_one_is_loaded():
+    class FakeLaMa:
+        def inpaint(self, roi, mask):
+            return roi.astype(np.float32)
+
+    prep = prepare_region(_region(), 320, 480)
+    assert Remover([prep], "auto", lama=FakeLaMa()).engine == "ai"
+
+
+def test_auto_falls_back_without_a_model():
+    """Auto must never fail a job over an optional upgrade."""
+    prep = prepare_region(_region(), 320, 480)
+    assert Remover([prep], "auto", lama=None).engine == "balanced"
 
 
 def test_ai_engine_degrades_when_the_model_is_missing():

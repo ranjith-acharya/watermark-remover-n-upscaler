@@ -35,8 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-o", "--output", help="output file (single input only)")
     p.add_argument("--to", default="off", choices=list(up.TARGETS),
                    help="upscale target, keyed on the short side (default: off)")
-    p.add_argument("--engine", default="balanced", choices=list(ENGINES),
-                   help="removal engine (default: balanced)")
+    p.add_argument("--engine", default="auto", choices=list(ENGINES),
+                   help="removal engine (default: auto - LaMa on GPU when available)")
     p.add_argument("--upscaler", default="lanczos", choices=["lanczos", "ai"],
                    help="how to upscale when --to is set (default: lanczos)")
     p.add_argument("--model", default=up.DEFAULT_MODEL, choices=list(up.MODELS))

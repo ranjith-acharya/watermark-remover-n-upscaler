@@ -24,7 +24,7 @@ MATTE_SAMPLES = 96
 @dataclass
 class Options:
     remove: bool = True
-    engine: str = "balanced"             # fast | balanced | ai
+    engine: str = "auto"                 # auto | fast | balanced | ai
     target: str = "off"                  # off | 720p | 1080p | 1440p | 4k
     upscale_mode: str = "lanczos"        # lanczos | ai
     model: str = up.DEFAULT_MODEL
@@ -146,14 +146,20 @@ def run(input_path: str | Path, output_path: str | Path, options: Options | None
             on_progress("detect", 0.0, "No watermark found; removal skipped")
 
     lama = None
-    if options.remove and options.engine == "ai" and prepared:
+    if options.remove and options.engine in ("auto", "ai") and prepared:
         ok, why = lama_mod.available()
         if ok:
             on_progress("model", 0.0, "Loading LaMa inpainting model")
-            lama = lama_mod.LaMa(progress=lambda f: on_progress(
-                "model", f, f"Downloading LaMa weights {f:.0%}"))
-        else:
-            on_progress("model", 0.0, f"AI removal unavailable ({why}); using balanced")
+            try:
+                lama = lama_mod.LaMa(progress=lambda f: on_progress(
+                    "model", f, f"Downloading LaMa weights {f:.0%}"))
+            except Exception as exc:
+                # Auto must never fail the job over an optional upgrade.
+                if options.engine == "ai":
+                    raise
+                on_progress("model", 0.0, f"LaMa unavailable ({exc}); using Telea")
+        elif options.engine == "ai":
+            on_progress("model", 0.0, f"AI removal unavailable ({why}); using Telea")
 
     remover = Remover(prepared, options.engine, lama=lama) if prepared else None
 

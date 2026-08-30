@@ -35,6 +35,26 @@ app = FastAPI(title="unmark")
 _sources: dict[str, "Source"] = {}
 _jobs: dict[str, "Job"] = {}
 _lock = threading.Lock()
+_lama = None
+_lama_lock = threading.Lock()
+
+
+def _get_lama():
+    """Load LaMa once and keep it. The preview has to render with the engine the
+    job will actually use, or it shows a problem the output will not have."""
+    global _lama
+    if _lama is not None:
+        return _lama
+    ok, _ = lama_mod.available()
+    if not ok:
+        return None
+    with _lama_lock:
+        if _lama is None:
+            try:
+                _lama = lama_mod.LaMa()
+            except Exception:
+                return None
+    return _lama
 
 
 @dataclass
@@ -169,14 +189,15 @@ async def upload(file: UploadFile = File(...)) -> dict:
 
 
 @app.get("/api/preview/{source_id}")
-def preview(source_id: str, engine: str = "balanced", zoom: int = 1) -> Response:
+def preview(source_id: str, engine: str = "auto", zoom: int = 1) -> Response:
     """A before/after strip for one frame, so the fix is visible before committing."""
     src = _get_source(source_id)
     frame = ffmpegio.read_frame_at(src.path, _preview_frame_index(src.info))
 
     regions = src.detection.regions
     prepared = [prepare_region(r, src.info.width, src.info.height) for r in regions]
-    cleaned = (Remover(prepared, engine if engine != "ai" else "balanced").apply(frame)
+    lama = _get_lama() if engine in ("auto", "ai") else None
+    cleaned = (Remover(prepared, engine, lama=lama).apply(frame)
                if prepared else frame)
 
     if zoom and regions:
@@ -193,7 +214,7 @@ def preview(source_id: str, engine: str = "balanced", zoom: int = 1) -> Response
 
 
 @app.post("/api/process")
-def process(source_id: str = Form(...), engine: str = Form("balanced"),
+def process(source_id: str = Form(...), engine: str = Form("auto"),
             target: str = Form("off"), upscale_mode: str = Form("lanczos"),
             model: str = Form(up.DEFAULT_MODEL), encoder: str = Form("auto"),
             quality: int = Form(20), remove: bool = Form(True),
