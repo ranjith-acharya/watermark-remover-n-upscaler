@@ -35,8 +35,13 @@ async function loadEnv() {
     ? `${dead.join(', ')} cannot start here (GPU driver too old for this ffmpeg build).`
     : 'Hardware encoding available.';
 
+  if (ENV.torch.available && ENV.torch.cuda) {
+    $('engineNote').textContent = `Auto will use LaMa on the ${ENV.torch.device}.`;
+  }
   if (!ENV.torch.available) {
-    $('engineNote').textContent = 'AI removal needs PyTorch. Run install_ai.bat.';
+    $('engineNote').textContent =
+      'Auto falls back to Telea (CPU). Run install_ai.bat for LaMa, which is much '
+      + 'better over structure.';
     $('modeNote').textContent = 'Real-ESRGAN needs PyTorch. Run install_ai.bat.';
   } else if (!ENV.torch.cuda) {
     $('engineNote').textContent = 'PyTorch found, but no CUDA - AI tiers run on CPU (slow).';
@@ -134,7 +139,7 @@ function renderDetection() {
 async function refreshPreview() {
   if (!source) return;
   const zoom = $('zoom').checked ? 1 : 0;
-  const engine = $('engine').value;
+  const engine = $('engine').value;  // 'auto' is resolved server-side
   $('previewNote').textContent = 'rendering...';
   $('previewImg').src =
     `/api/preview/${source.id}?engine=${engine}&zoom=${zoom}&t=${Date.now()}`;

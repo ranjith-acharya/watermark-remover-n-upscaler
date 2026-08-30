@@ -1,10 +1,18 @@
 """Watermark removal engines.
 
-Three engines fill the masked pixels:
+Engines that fill the masked pixels:
 
+  auto      LaMa when PyTorch is present, Telea otherwise - the default
   fast      border interpolation across the masked box (the delogo approach)
   balanced  Telea inpainting of the masked pixels, per frame
   ai        LaMa inpainting on the cropped patch, per frame (needs PyTorch)
+
+`auto` exists because the gap between Telea and LaMa is large and entirely
+invisible from the settings screen. Telea propagates colour inward from the
+boundary, which holds up over flat or blurred backgrounds and collapses into a
+smeared rectangle over structure - a roofline, a collar, a building edge. LaMa
+reconstructs those. Making people discover that by trying both, on a control
+they have no basis to judge, was a design mistake.
 
 On top of whichever engine runs, an *alpha matte* may be recovered and used to
 put back the real pixels instead of invented ones. For a masked pixel,
@@ -32,7 +40,7 @@ import numpy as np
 
 from .detect import Region
 
-ENGINES = ("fast", "balanced", "ai")
+ENGINES = ("auto", "fast", "balanced", "ai")
 
 ALPHA_MAX = 0.95            # above this, (1-a) is too small to divide by safely
 MIN_SPREAD = 25.0           # background variance needed before alpha is solvable
@@ -292,10 +300,13 @@ def unblend(roi: np.ndarray, matte: Matte) -> np.ndarray:
 class Remover:
     """Applies prepared regions to frames with the chosen engine."""
 
-    def __init__(self, regions: list[PreparedRegion], engine: str = "balanced",
+    def __init__(self, regions: list[PreparedRegion], engine: str = "auto",
                  lama=None):
         if engine not in ENGINES:
             raise ValueError(f"unknown engine {engine!r}; expected one of {ENGINES}")
+        if engine == "auto":
+            # Resolved by the pipeline, which knows whether the model loaded.
+            engine = "ai" if lama is not None else "balanced"
         if engine == "ai" and lama is None:
             engine = "balanced"          # caller could not load the model
         self.regions = regions

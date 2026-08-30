@@ -59,9 +59,10 @@
       <label class="field">
         <span>Remove watermark</span>
         <select id="engine">
-          <option value="balanced" selected>Standard - inpaint (recommended)</option>
+          <option value="auto" selected>Auto - best available (recommended)</option>
+          <option value="ai">AI - LaMa on the GPU</option>
+          <option value="balanced">Standard - Telea inpaint (CPU)</option>
           <option value="fast">Fast - edge interpolation</option>
-          <option value="ai">AI - LaMa (needs PyTorch)</option>
         </select>
         <small id="engineNote"></small>
       </label>
