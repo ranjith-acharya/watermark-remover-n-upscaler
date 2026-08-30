@@ -91,6 +91,47 @@ def test_reason_is_reported(clip_with_card):
     assert set(card.to_dict()) >= {"start_frame", "seconds", "confidence", "reason"}
 
 
+@pytest.fixture(scope="session")
+def clip_with_a_harder_content_cut(tmp_path_factory):
+    """A scene change in the content that is sharper than the card's join.
+
+    Regression. Taking the strongest cut in the window picked the content
+    change, which made a "card" out of several seconds of real footage.
+    """
+    path = tmp_path_factory.mktemp("outro") / "harder_cut.mp4"
+    dark = (clean_frame(0) * 0.25).astype(np.uint8)
+    body = ([dark.copy() for _ in range(40)] +          # dark opening
+            [clean_frame(i) for i in range(40, 100)])   # hard, bright scene change
+    return _write_clip(path, body + [_card().copy() for _ in range(48)])
+
+
+def test_content_cut_does_not_win_over_the_join(clip_with_a_harder_content_cut):
+    card = detect_outro(str(clip_with_a_harder_content_cut))
+    assert card is not None
+    assert abs(card.start_frame - 100) <= 4, card.to_dict()
+    assert card.seconds <= 2.5, "must not swallow footage before the card"
+
+
+@pytest.fixture(scope="session")
+def clip_with_a_fading_card(tmp_path_factory):
+    """A card that fades its logo up over half a second before holding.
+
+    Regression. Growing the card backwards while frames "look like" it stopped
+    inside the fade, putting the supposed join where there was no cut.
+    """
+    path = tmp_path_factory.mktemp("outro") / "fading.mp4"
+    card = _card()
+    fade = [(card * (0.15 + 0.85 * k / 15.0)).astype(np.uint8) for k in range(15)]
+    return _write_clip(path, [clean_frame(i) for i in range(90)]
+                       + fade + [card.copy() for _ in range(33)])
+
+
+def test_a_card_that_fades_in_is_found_whole(clip_with_a_fading_card):
+    card = detect_outro(str(clip_with_a_fading_card))
+    assert card is not None
+    assert abs(card.start_frame - 90) <= 4, card.to_dict()
+
+
 def test_short_clips_are_left_alone(tmp_path):
     path = _write_clip(tmp_path / "tiny.mp4", [clean_frame(i) for i in range(12)])
     assert detect_outro(str(path)) is None
