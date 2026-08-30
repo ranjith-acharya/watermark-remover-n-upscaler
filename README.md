@@ -177,9 +177,17 @@ Three engines fill the masked pixels:
 
 | Engine | Method | Speed |
 | --- | --- | --- |
+| `auto` | LaMa when PyTorch is present, Telea otherwise — **the default** | — |
+| `ai` | LaMa inpainting on the cropped patch, on the GPU | ~12 fps |
+| `balanced` | Telea inpainting, per frame, CPU only | ~20 fps |
 | `fast` | inverse-distance interpolation from the region border | ~24 fps |
-| `balanced` | Telea inpainting, per frame — **the default** | ~20 fps |
-| `ai` | LaMa inpainting on the cropped patch (needs PyTorch) | ~3 fps |
+
+The gap between Telea and LaMa is large and completely invisible from a settings
+screen, which is why `auto` exists. Telea propagates colour inward from the
+region's boundary: fine over sky, blur or a flat wall, and it collapses into a
+smeared rectangle over structure — a roofline, a collar, a building edge. LaMa
+reconstructs those. Given a GPU it is the better answer nearly always, so it is
+what you get without asking.
 
 Only the padded region around the watermark is ever processed, typically under
 100×100 px, which is why even the AI engine fits comfortably in 4 GB of VRAM.
@@ -327,12 +335,23 @@ see what it found, watermark and end card both. Detection is weakest on very
 short clips of a nearly static camera, where scene features persist as
 convincingly as an overlay does.
 
-**The cleaned area looks smeared** — this is the real limit of the tool. Removal
-has to invent whatever was behind the mark, and how well that works depends
-almost entirely on what it covers. A small mark over sky, wall or blur is
-invisible afterwards. A large opaque plate sitting over a face is not: no
-single-frame inpainter reconstructs a mouth convincingly, and `--engine ai`
-will not rescue it. Nothing in the settings fixes that case today.
+**The cleaned area looks smeared** — first check you are not on `--engine
+balanced`, which is CPU Telea and visibly worse over structure; `auto` picks
+LaMa whenever PyTorch is installed, so `install_ai.bat` may be the whole fix.
+
+Past that, this is the real limit of the tool. Removal has to invent whatever was
+behind the mark, and how well that works depends on what it covers. A mark over
+sky, wall or blur disappears. A large opaque plate over a **face** does not: no
+single-frame inpainter reconstructs a mouth convincingly, and LaMa will not
+rescue that case.
+
+Recovering those pixels from neighbouring frames, where the subject has moved,
+was measured and rejected: a rigid-transform alignment recovered 14% of the
+masked area on a 38s sample, and GPU optical flow (RAFT) with flow completion
+reached 27%. Neither is enough to fill a mark on its own, and a patchwork of real
+and invented pixels seams worse than a uniform fill. Doing it properly needs a
+video inpainting model such as ProPainter or E2FGVI, which is not implemented
+here.
 
 ---
 
