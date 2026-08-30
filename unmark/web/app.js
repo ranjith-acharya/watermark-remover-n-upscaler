@@ -166,10 +166,14 @@ function updateTargetNote() {
     $('targetNote').textContent =
       `${i.width} x ${i.height} to ${even(i.width * f)} x ${even(i.height * f)} (${f.toFixed(2)}x).`;
   }
-  const ai = $('upscaleMode').value === 'ai' && $('target').value !== 'off';
+  const gpu = ENV && ENV.torch.available && ENV.torch.cuda;
+  const chosen = $('upscaleMode').value === 'auto'
+    ? (gpu ? 'ai' : 'lanczos') : $('upscaleMode').value;
+  const ai = chosen === 'ai' && $('target').value !== 'off';
   $('modeNote').textContent = ai
     ? `Roughly ${Math.round(i.n_frames * 0.6 / 60)}-${Math.round(i.n_frames * 2 / 60)} min on this GPU.`
-    : 'Resampled by ffmpeg; near-instant.';
+    : ($('target').value === 'off' ? 'No upscale selected.'
+       : 'Resampled by ffmpeg; near-instant.');
 
   const parts = [];
   if ($('target').value !== 'off') parts.push($('target').value.toUpperCase());

@@ -26,7 +26,7 @@ class Options:
     remove: bool = True
     engine: str = "auto"                 # auto | fast | balanced | ai
     target: str = "off"                  # off | 720p | 1080p | 1440p | 4k
-    upscale_mode: str = "lanczos"        # lanczos | ai
+    upscale_mode: str = "auto"           # auto | lanczos | ai
     model: str = up.DEFAULT_MODEL
     encoder: str = "auto"
     quality: int = 20
@@ -39,8 +39,8 @@ class Options:
             raise ValueError(f"engine must be one of {ENGINES}")
         if self.target not in up.TARGETS:
             raise ValueError(f"target must be one of {list(up.TARGETS)}")
-        if self.upscale_mode not in ("lanczos", "ai"):
-            raise ValueError("upscale_mode must be 'lanczos' or 'ai'")
+        if self.upscale_mode not in ("auto", "lanczos", "ai"):
+            raise ValueError("upscale_mode must be 'auto', 'lanczos' or 'ai'")
         if not self.remove and self.target == "off" and not self.trim_outro:
             raise ValueError(
                 "nothing to do: removal and trimming are off, and no upscale target is set")

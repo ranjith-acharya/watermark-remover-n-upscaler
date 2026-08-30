@@ -77,9 +77,23 @@ def _even(n: float) -> int:
     return max(2, int(round(n)) // 2 * 2)
 
 
+def resolve_mode(mode: str) -> str:
+    """Turn "auto" into a concrete upscaler based on what this machine has.
+
+    A dedicated GPU is used whenever one is present; the CPU path is a fallback,
+    not a default. Real-ESRGAN reconstructs detail that lanczos can only blur
+    into existence, and the cost is minutes rather than seconds.
+    """
+    if mode != "auto":
+        return mode
+    status = torch_status()
+    return "ai" if (status["available"] and status["cuda"]) else "lanczos"
+
+
 def plan_upscale(width: int, height: int, target: str, mode: str = "lanczos",
                  model: str = DEFAULT_MODEL) -> Plan:
     """Resolve a target name into concrete output dimensions and a net scale."""
+    mode = resolve_mode(mode)
     if target not in TARGETS:
         raise ValueError(f"unknown target {target!r}; expected one of {list(TARGETS)}")
     short_side = TARGETS[target]
