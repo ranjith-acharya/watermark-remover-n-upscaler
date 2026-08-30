@@ -1,4 +1,4 @@
-# flowclean — watermark remover & upscaler
+# unmark — watermark remover & upscaler
 
 Removes the watermark from a video, trims the branded end card, and upscales,
 through a local web UI. Detection is automatic: you point it at a file and press
@@ -184,7 +184,7 @@ Three engines fill the masked pixels:
 Only the padded region around the watermark is ever processed, typically under
 100×100 px, which is why even the AI engine fits comfortably in 4 GB of VRAM.
 
-On top of whichever engine runs, flowclean tries to recover the watermark's
+On top of whichever engine runs, unmark tries to recover the watermark's
 **alpha matte** and put the real pixels back instead of invented ones. The
 overlay is constant, so it scales the scene's contrast by `(1-a)`: wherever the
 video moves, the temporal variance under the mark is `(1-a)²` of what it should
@@ -232,7 +232,7 @@ a 720×1280 clip at `4k` becomes 2160×3840, not a squashed landscape frame.
 ## Project layout
 
 ```
-flowclean/
+unmark/
   ffmpegio.py    probing, raw frame streaming, encoder selection
   detect.py      automatic watermark detection
   remove.py      fill engines and the alpha matte solve
@@ -307,7 +307,7 @@ branch and becomes a merge conflict.
 new terminal so the updated `PATH` is picked up.
 
 **Falls back to x264 / says NVENC is unavailable** — NVENC needs a driver new
-enough for the nvenc API your ffmpeg build was compiled against. flowclean
+enough for the nvenc API your ffmpeg build was compiled against. unmark
 probes each encoder with a real one-frame encode rather than trusting
 `ffmpeg -encoders`, so it detects this instead of failing mid-run. Updating the
 NVIDIA driver re-enables hardware encoding. Nothing else is affected; x264 is

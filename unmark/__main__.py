@@ -1,9 +1,9 @@
 """Command line entry point.
 
-    python -m flowclean                     launch the web UI
-    python -m flowclean 01.mp4              detect + remove, same resolution
-    python -m flowclean 01.mp4 --to 4k      remove and upscale
-    python -m flowclean --detect 01.mp4     report what it finds, change nothing
+    python -m unmark                     launch the web UI
+    python -m unmark 01.mp4              detect + remove, same resolution
+    python -m unmark 01.mp4 --to 4k      remove and upscale
+    python -m unmark --detect 01.mp4     report what it finds, change nothing
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def _progress(stage: str, fraction: float, message: str) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="flowclean",
+    p = argparse.ArgumentParser(prog="unmark",
                                 description="Automatic watermark removal and upscaling.")
     p.add_argument("input", nargs="*", help="video files (omit to launch the web UI)")
     p.add_argument("-o", "--output", help="output file (single input only)")
@@ -64,8 +64,8 @@ def serve(args) -> int:
         import threading
         import webbrowser
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    print(f"flowclean UI on {url}  (Ctrl+C to stop)")
-    uvicorn.run("flowclean.server:app", host=args.host, port=args.port, log_level="warning")
+    print(f"unmark UI on {url}  (Ctrl+C to stop)")
+    uvicorn.run("unmark.server:app", host=args.host, port=args.port, log_level="warning")
     return 0
 
 

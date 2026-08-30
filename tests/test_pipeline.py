@@ -4,8 +4,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from flowclean import ffmpegio
-from flowclean.pipeline import Options, default_output, run
+from unmark import ffmpegio
+from unmark.pipeline import Options, default_output, run
 from conftest import GLYPH_BOX, clean_frame
 
 
@@ -69,7 +69,7 @@ def test_flat_background_still_removes_the_mark(flat_marked_clip, tmp_path):
 
 
 def test_cancellation_stops_early(marked_clip, tmp_path):
-    from flowclean.pipeline import Cancelled
+    from unmark.pipeline import Cancelled
 
     calls = {"n": 0}
 
@@ -94,7 +94,7 @@ def test_trimming_alone_is_a_valid_job():
 def test_end_card_is_trimmed_from_the_output(marked_clip, tmp_path, tmp_path_factory):
     """A clip with a branded card should come out shorter, card gone."""
     from conftest import _write_clip
-    from flowclean.outro import detect_outro
+    from unmark.outro import detect_outro
 
     card = np.full((480, 320, 3), 18, dtype=np.uint8)
     card[218:262, 90:230] = 210

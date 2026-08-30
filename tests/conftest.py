@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from flowclean import ffmpegio  # noqa: E402
+from unmark import ffmpegio  # noqa: E402
 
 WIDTH, HEIGHT, FRAMES, FPS = 320, 480, 60, 24.0
 GLYPH_BOX = (232, 392, 40, 40)      # x, y, w, h - bottom right, like Flow
