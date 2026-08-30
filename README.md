@@ -338,7 +338,11 @@ will not rescue it. Nothing in the settings fixes that case today.
 
 ## Scope
 
-This removes the *visible* mark. Flow output also carries **SynthID**, an
-invisible provenance watermark that survives re-encoding and upscaling, so the
-result is visually clean but not stripped of provenance. Flow's paid tiers offer
-watermark-free export directly.
+This removes the *visible* mark, and only that.
+
+Many generators also embed an **invisible** provenance signal that survives
+re-encoding, upscaling and trimming — Google's SynthID, C2PA content credentials,
+and various vendor-specific equivalents. None of them are touched here, so a
+cleaned file is visually clean but still carries whatever provenance it shipped
+with. Several tools, Google Flow among them, offer watermark-free export on their
+paid tiers, which is the cleaner route when it is available to you.

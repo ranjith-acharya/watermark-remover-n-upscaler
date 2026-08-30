@@ -12,7 +12,7 @@
     <span class="glyph">&#10022;</span>
     <div>
       <h1>flowclean</h1>
-      <p>Automatic watermark removal &amp; upscaling for AI-generated video</p>
+      <p>Automatic watermark removal, end-card trimming &amp; upscaling</p>
     </div>
   </div>
   <div id="env" class="env"></div>
@@ -129,8 +129,9 @@
   </section>
 
   <p class="footnote">
-    Removes the <em>visible</em> mark only. Flow output also carries SynthID, an
-    invisible provenance watermark that survives re-encoding and upscaling.
+    Removes the <em>visible</em> mark only. Many generators also embed an invisible
+    provenance signal &mdash; SynthID, C2PA credentials and the like &mdash; which
+    survives re-encoding, upscaling and trimming, and is not touched here.
   </p>
 </main>
 
