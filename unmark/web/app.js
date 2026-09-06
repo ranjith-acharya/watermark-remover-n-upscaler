@@ -143,10 +143,12 @@ function renderDetection() {
        You can still upscale.</div>`;
     return;
   }
-  const detected = r.source === 'detected';
+  const detected = isImage() ? source.detected : r.source === 'detected';
   const badge = detected
     ? `<span class="badge ok">Detected &middot; ${Math.round(r.confidence * 100)}% confidence</span>`
-    : '<span class="badge warn">Nothing detected - using the requested Flow preset</span>';
+    : isImage()
+      ? '<span class="badge warn">No Flow sparkle found - the image will be left as it is</span>'
+      : '<span class="badge warn">Nothing detected - using the requested Flow preset</span>';
   const extra = source.regions.length > 1
     ? ` <span class="muted">(+${source.regions.length - 1} more region)</span>` : '';
   $('detectInfo').innerHTML = `${badge}${extra}
@@ -244,6 +246,18 @@ async function pollJob() {
   renderResult(job.result);
 }
 
+function setDownload(res, url) {
+  const link = $('download');
+  link.href = url;
+  link.setAttribute('download', res.output.split(/[\/]/).pop());
+  $('downloadNote').textContent = res.output;
+  $('openFolder').onclick = () => {
+    const body = new FormData();
+    body.set('path', res.output);
+    fetch('/api/open-folder', { method: 'POST', body });
+  };
+}
+
 function renderResult(res) {
   if (res.kind === 'image') return renderImageResult(res);
   const p = res.plan;
@@ -262,6 +276,7 @@ function renderResult(res) {
   show($('resultImage'), false);
   show($('resultVideo'));
   $('resultVideo').src = `/api/video/${jobId}?t=${Date.now()}`;
+  setDownload(res, `/api/video/${jobId}`);
   show($('step-result'));
   $('step-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -283,6 +298,7 @@ function renderImageResult(res) {
   show($('resultVideo'), false);
   $('resultVideo').removeAttribute('src');
   $('resultImage').src = `/api/image/${jobId}?t=${Date.now()}`;
+  setDownload(res, `/api/image/${jobId}`);
   show($('resultImage'));
   show($('step-result'));
   $('step-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });

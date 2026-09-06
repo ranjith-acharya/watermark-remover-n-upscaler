@@ -23,7 +23,7 @@ from .pipeline import Options, ProgressFn, _noop
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
-MIN_CONFIDENCE = 0.20   # below this we say so rather than scrub a clean corner
+MIN_CONFIDENCE = 0.35   # below this we say so rather than scrub a clean corner
 POLISH_GHOST = 6.0      # residual high-pass level worth a second pass
 
 

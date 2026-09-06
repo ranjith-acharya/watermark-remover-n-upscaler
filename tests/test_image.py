@@ -161,3 +161,24 @@ def test_upscale_target_uses_the_short_side_on_a_tall_image(tmp_path, glyph):
 def test_is_image_recognises_what_it_should():
     assert img.is_image("a.PNG") and img.is_image("b.jpeg")
     assert not img.is_image("c.mp4")
+
+
+def test_a_faint_mark_on_a_bright_background_is_still_found(glyph):
+    """The regression: screen adds c*(1 - scene), so on a bright picture the
+    mark almost vanishes. Energy and template tests both miss it there; the
+    model-fit correlation does not care about amplitude."""
+    bright = np.full((HEIGHT, WIDTH, 3), 225, np.uint8)
+    bright[::3, ::3] = 235                       # a little texture to fit against
+    x, y = place(glyph)
+    marked = screen(bright, glyph, x, y)
+
+    faintness = np.abs(marked.astype(float) - bright.astype(float)).max()
+    assert faintness < 30, "fixture is meant to be a faint mark"
+    assert locate(marked, glyph).confidence >= img.MIN_CONFIDENCE
+
+
+def test_confidence_comes_from_the_fit_not_the_template(glyph):
+    """Scene texture alone correlates with the glyph shape well enough to score
+    on the template test, so confidence must not be able to ride on that."""
+    match = locate(clean_frame(3, WIDTH, HEIGHT), glyph)
+    assert match.confidence == max(0.0, min(1.0, match.fit))
