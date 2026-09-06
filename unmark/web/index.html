@@ -26,7 +26,7 @@
       <p class="drop-title">Drop a video here</p>
       <p class="muted">or</p>
       <div class="row">
-        <input type="file" id="file" accept="video/*" hidden>
+        <input type="file" id="file" accept="video/*,image/*" hidden>
         <button class="btn" id="browse">Browse&hellip;</button>
       </div>
       <div class="row path-row">
@@ -112,7 +112,7 @@
       Trim the branded end card when one is found</label>
 
     <div class="actions">
-      <button class="btn primary" id="run">Process video</button>
+      <button class="btn primary" id="run">Process</button>
       <button class="btn ghost hidden" id="cancel">Cancel</button>
       <span class="muted" id="planNote"></span>
     </div>
@@ -128,6 +128,7 @@
     <h2><span class="num">4</span> Result</h2>
     <div id="resultInfo"></div>
     <video id="resultVideo" controls playsinline></video>
+    <img id="resultImage" class="hidden" alt="cleaned image">
   </section>
 
   <p class="footnote">

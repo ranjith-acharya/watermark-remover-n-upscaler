@@ -74,6 +74,7 @@ async function useSource(promise, button) {
   if (button) setBusy(button, 'Scanning...');
   try {
     source = await promise;
+    applyKind();
     renderSource();
     renderDetection();
     await refreshPreview();
@@ -87,15 +88,33 @@ async function useSource(promise, button) {
   }
 }
 
+function isImage() {
+  return source && source.kind === 'image';
+}
+
+// Encoder, quality and end-card trimming are meaningless for a still. Hiding
+// them is not cosmetic: leaving them on screen implies the job will honour
+// settings it silently ignores.
+function applyKind() {
+  const still = isImage();
+  ['encoder', 'quality', 'trimOutro'].forEach((id) => {
+    const field = $(id) && $(id).closest('.field, .toggle');
+    if (field) show(field, !still);
+  });
+  $('run').textContent = still ? 'Process image' : 'Process video';
+}
+
 function renderSource() {
   const i = source.info;
   const mb = (i.width * i.height) / 1e6;
   $('sourceInfo').innerHTML = `
     <dl class="kv">
       <dt>File</dt><dd class="mono">${source.path}</dd>
-      <dt>Video</dt><dd>${i.width} x ${i.height} &middot; ${i.fps.toFixed(2)} fps &middot;
+      ${isImage()
+        ? `<dt>Image</dt><dd>${i.width} x ${i.height} still</dd>`
+        : `<dt>Video</dt><dd>${i.width} x ${i.height} &middot; ${i.fps.toFixed(2)} fps &middot;
           ${i.duration.toFixed(1)}s &middot; ${i.n_frames} frames &middot; ${i.codec}
-          ${i.has_audio ? '+ audio' : '(no audio)'}</dd>
+          ${i.has_audio ? '+ audio' : '(no audio)'}</dd>`}
     </dl>`;
   show($('sourceInfo'));
   updateTargetNote();
@@ -226,6 +245,7 @@ async function pollJob() {
 }
 
 function renderResult(res) {
+  if (res.kind === 'image') return renderImageResult(res);
   const p = res.plan;
   const matte = res.matte && res.matte.note ? res.matte.note : 'exact recovery not needed';
   $('resultInfo').innerHTML = `
@@ -239,7 +259,31 @@ function renderResult(res) {
       <dt>Encoder</dt><dd>${res.encoder}</dd>
       <dt>Time</dt><dd>${res.seconds}s for ${res.frames} frames (${res.fps} fps)</dd>
     </dl>`;
+  show($('resultImage'), false);
+  show($('resultVideo'));
   $('resultVideo').src = `/api/video/${jobId}?t=${Date.now()}`;
+  show($('step-result'));
+  $('step-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderImageResult(res) {
+  const p = res.plan;
+  const m = res.match;
+  $('resultInfo').innerHTML = `
+    <dl class="kv">
+      <dt>Saved to</dt><dd class="mono">${res.output}</dd>
+      <dt>Resolution</dt><dd>${p.out_w} x ${p.out_h}${p.mode === 'ai'
+          ? ' (Real-ESRGAN)' : ''}</dd>
+      <dt>Watermark</dt><dd>${res.removed
+          ? `removed by reversing the screen blend${res.polished
+              ? ' (plus a polish pass on the ghost)' : ''}` +
+            (m ? ` &mdash; <span class="muted">confidence ${m.confidence}</span>` : '')
+          : `<span class="muted">${res.reason}</span>`}</dd>
+    </dl>`;
+  show($('resultVideo'), false);
+  $('resultVideo').removeAttribute('src');
+  $('resultImage').src = `/api/image/${jobId}?t=${Date.now()}`;
+  show($('resultImage'));
   show($('step-result'));
   $('step-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
