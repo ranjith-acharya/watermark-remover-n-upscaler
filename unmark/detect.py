@@ -27,7 +27,13 @@ FLOW_PRESET = (0.8000, 0.8875, 0.8667, 0.9250)  # x0, y0, x1, y1
 
 MIN_ISOLATION = 0.90    # how quiet the ring around a candidate must be
 MIN_STRENGTH = 15.0     # a watermark has to actually stand out from the picture
-STRENGTH_FULL = 30.0    # response at which a candidate scores full marks
+# Response at which a candidate scores full marks. Strength is here to *gate*
+# faint rubbish, not to rank: past this point more contrast is not more
+# watermark-like. Set to 30 it was, and a bright collage edge held at 72 then
+# outscored a semi-transparent sparkle at 24 by a wider margin than the sparkle
+# won on persistence - so on a clip that barely moves, scene furniture was
+# picked and the real mark was dropped by the dominance rule.
+STRENGTH_FULL = 20.0
 DOMINANCE = 0.90        # secondary regions must score this share of the best
 MAX_ANALYSIS_DIM = 1280
 MAX_SAMPLES = 64

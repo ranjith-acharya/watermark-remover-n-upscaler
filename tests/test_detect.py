@@ -149,3 +149,45 @@ def test_watermark_away_from_any_edge_is_still_found():
 def test_flow_preset_is_within_the_frame():
     x0, y0, x1, y1 = FLOW_PRESET
     assert 0 < x0 < x1 < 1 and 0 < y0 < y1 < 1
+
+
+def test_a_bright_static_prop_does_not_outrank_a_faint_watermark():
+    """A clip that barely moves, where scene furniture is brighter than the mark.
+
+    Collage-style clips settle after a second and then hold, which leaves plenty
+    of high-contrast scene texture as persistent as the watermark. The mark
+    still wins on presence - it is in every frame, the prop arrives a few frames
+    in - but being semi-transparent it is far lower in contrast.
+
+    With the strength term saturating at 30 the prop took first place and the
+    dominance rule then discarded the real mark, so the watermark survived into
+    the output untouched. Strength is a gate, not a ranking: past the point
+    where a candidate clearly stands out, more contrast is not more
+    watermark-like.
+    """
+    import cv2
+
+    from conftest import FRAMES, HEIGHT, WIDTH
+
+    rng = np.random.default_rng(0)
+    prop = cv2.GaussianBlur(
+        (rng.random((26, 22)) > 0.5).astype(np.float32) * 255.0, (0, 0), 0.6)
+
+    frames = []
+    for i in range(FRAMES):
+        frame = clean_frame(i // 5, WIDTH, HEIGHT).copy()   # barely moving
+        if i >= 8:                                          # prop lands, then holds
+            frame[60:86, 40:62] = prop[:, :, None]
+        # Fainter than the usual fixture, so the prop really does out-contrast it.
+        frames.append(cv2.cvtColor(blend_glyph(frame, alpha=0.30), cv2.COLOR_BGR2GRAY))
+
+    detection = detect_in_frames(np.stack(frames))
+    assert detection.found
+
+    x, y = GLYPH_BOX[0], GLYPH_BOX[1]
+    best = detection.regions[0]
+    assert abs(best.x - x) <= 4 and abs(best.y - y) <= 4, (
+        f"ranked {best.box} first, but the watermark is at {GLYPH_BOX}")
+
+    for region in detection.regions[1:]:
+        assert not (30 <= region.x <= 70 and 50 <= region.y <= 90),             "the prop must not survive as a second region and get painted over"
