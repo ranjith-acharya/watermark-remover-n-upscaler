@@ -1,3 +1,3 @@
-"""unmark - automatic video watermark removal and AI upscaling."""
+"""unmark - automatic watermark removal and AI upscaling for video and stills."""
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
