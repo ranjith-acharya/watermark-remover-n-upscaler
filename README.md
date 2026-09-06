@@ -215,6 +215,18 @@ Fail any one and the matte is discarded, the fill engine stands alone, and the
 result reports which happened and why. On dark, flat footage it is normally
 rejected — that is the system working, not failing.
 
+### Ranking, and why contrast does not decide it
+
+Two things make a candidate a watermark: it is **present in every frame**, and
+it **stops at its own edges**. Contrast only has to clear a floor. That
+distinction matters on clips that barely move - a collage that settles after a
+second leaves scene texture nearly as persistent as the mark, and far brighter
+than a semi-transparent one. When the strength term kept scaling up to a
+response of 30, a collage edge at 72 outscored a sparkle at 24 by more than the
+sparkle won on presence, so the prop was ranked first and the dominance rule
+discarded the real mark. Strength now saturates at 20: enough to reject faint
+rubbish, not enough to outvote presence.
+
 ## Still images
 
 Video and stills are not the same problem, and unmark does not pretend they are.
