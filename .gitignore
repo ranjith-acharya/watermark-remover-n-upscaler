@@ -2,8 +2,13 @@
 .venv/
 venv/
 
-# Downloaded model weights (fetched on first use)
-models/
+# Downloaded model weights (fetched on first use). The measured Flow sparkle
+# is small and ships with the repo, so nobody has to calibrate it themselves.
+models/*
+!models/flow_glyph.npz
+
+# Calibration images belong to whoever generated them
+samples/
 
 # Working directories
 output/

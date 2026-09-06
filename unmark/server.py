@@ -19,8 +19,9 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import ffmpegio, lama as lama_mod, upscale as up
+from . import ffmpegio, image as image_mod, lama as lama_mod, upscale as up
 from .detect import Detection, Region, detect
+from .glyph import Glyph, locate, read_image
 from .outro import Outro, detect_outro
 from .pipeline import Cancelled, Options, Result, default_output, run
 from .remove import ENGINES, Remover, prepare_region
@@ -37,6 +38,15 @@ _jobs: dict[str, "Job"] = {}
 _lock = threading.Lock()
 _lama = None
 _lama_lock = threading.Lock()
+_glyph: Glyph | None = None
+
+
+def _get_glyph() -> Glyph:
+    """The measured Flow sparkle, loaded once."""
+    global _glyph
+    if _glyph is None:
+        _glyph = Glyph.load()
+    return _glyph
 
 
 def _get_lama():
@@ -61,15 +71,33 @@ def _get_lama():
 class Source:
     id: str
     path: str
-    info: ffmpegio.VideoInfo
-    detection: Detection
+    kind: str = "video"                       # "video" | "image"
+    info: ffmpegio.VideoInfo | None = None
+    detection: Detection | None = None
     outro: Outro | None = None
+    match: dict | None = None                 # images: where the Flow glyph sits
+    size: tuple[int, int] = (0, 0)            # images: width, height
 
     def payload(self) -> dict:
+        if self.kind == "image":
+            width, height = self.size
+            found = bool(self.match
+                         and self.match["confidence"] >= image_mod.MIN_CONFIDENCE)
+            return {
+                "id": self.id, "path": self.path, "name": Path(self.path).name,
+                "kind": "image",
+                "info": {"width": width, "height": height},
+                "label": f"{width}x{height} still",
+                "regions": [self.match] if self.match else [],
+                "detected": found,
+                "match": self.match,
+                "outro": None,
+            }
         return {
             "id": self.id,
             "path": self.path,
             "name": Path(self.path).name,
+            "kind": "video",
             "info": asdict(self.info),
             "label": self.info.label,
             "regions": [r.to_dict() for r in self.detection.regions],
@@ -111,11 +139,22 @@ def _load_source(path: str) -> Source:
     p = Path(path).expanduser()
     if not p.exists():
         raise HTTPException(400, f"file not found: {p}")
+
+    if image_mod.is_image(p):
+        picture = read_image(str(p))
+        found = locate(picture, _get_glyph())
+        src = Source(id=uuid.uuid4().hex[:12], path=str(p), kind="image",
+                     match=found.to_dict(),
+                     size=(picture.shape[1], picture.shape[0]))
+        with _lock:
+            _sources[src.id] = src
+        return src
+
     info = ffmpegio.probe(str(p))
     det = detect(str(p), info=info)
     card = detect_outro(str(p), info)
-    src = Source(id=uuid.uuid4().hex[:12], path=str(p), info=info, detection=det,
-                 outro=card)
+    src = Source(id=uuid.uuid4().hex[:12], path=str(p), kind="video", info=info,
+                 detection=det, outro=card)
     with _lock:
         _sources[src.id] = src
     return src
@@ -182,16 +221,45 @@ def open_path(path: str = Form(...)) -> dict:
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)) -> dict:
     UPLOADS.mkdir(parents=True, exist_ok=True)
-    dest = UPLOADS / f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'video.mp4').name}"
+    dest = UPLOADS / f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'clip.mp4').name}"
     with dest.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
     return _load_source(str(dest)).payload()
+
+
+def _image_preview(src: "Source", engine: str, zoom: bool) -> Response:
+    """Before and after for a still, rendered with the engine the job will use."""
+    picture = read_image(src.path)
+    glyph = _get_glyph()
+    found = locate(picture, glyph)
+    if found.confidence >= image_mod.MIN_CONFIDENCE:
+        lama = _get_lama() if engine in ("auto", "ai") else None
+        cleaned, _, _ = image_mod.remove_watermark(picture, glyph, engine=engine,
+                                                   lama=lama)
+    else:
+        cleaned = picture
+
+    region = Region(x=found.x, y=found.y, w=found.w, h=found.h,
+                    confidence=found.confidence, source="flow-glyph")
+    if zoom:
+        before = _zoom(_annotate(picture, [region]), region)
+        after = _zoom(cleaned, region)
+    else:
+        scale = 480 / max(picture.shape[:2])
+        size = (int(picture.shape[1] * scale), int(picture.shape[0] * scale))
+        before = cv2.resize(_annotate(picture, [region]), size)
+        after = cv2.resize(cleaned, size)
+
+    gap = np.full((before.shape[0], 8, 3), 24, dtype=np.uint8)
+    return Response(content=_png(np.hstack([before, gap, after])), media_type="image/png")
 
 
 @app.get("/api/preview/{source_id}")
 def preview(source_id: str, engine: str = "auto", zoom: int = 1) -> Response:
     """A before/after strip for one frame, so the fix is visible before committing."""
     src = _get_source(source_id)
+    if src.kind == "image":
+        return _image_preview(src, engine, bool(zoom))
     frame = ffmpegio.read_frame_at(src.path, _preview_frame_index(src.info))
 
     regions = src.detection.regions
@@ -220,6 +288,8 @@ def process(source_id: str = Form(...), engine: str = Form("auto"),
             quality: int = Form(20), remove: bool = Form(True),
             trim_outro: bool = Form(True)) -> dict:
     src = _get_source(source_id)
+    if src.kind == "image":
+        return _process_image(src, engine, target, upscale_mode, model, quality, remove)
     options = Options(remove=remove and bool(src.detection.regions), engine=engine,
                       target=target, upscale_mode=upscale_mode, model=model,
                       encoder=encoder, quality=quality, trim_outro=trim_outro,
@@ -258,6 +328,41 @@ def process(source_id: str = Form(...), engine: str = Form("auto"),
     return job.payload()
 
 
+def _process_image(src: "Source", engine: str, target: str, upscale_mode: str,
+                   model: str, quality: int, remove: bool) -> dict:
+    """Stills run on the same job plumbing so the browser polls one endpoint."""
+    options = Options(remove=remove, engine=engine, target=target,
+                      upscale_mode=upscale_mode, model=model, quality=quality,
+                      trim_outro=False)
+    if not remove and target == "off":
+        raise HTTPException(400, "nothing to do: removal is off and no upscale is set")
+
+    job = Job(id=uuid.uuid4().hex[:12])
+    with _lock:
+        _jobs[job.id] = job
+    out_path = image_mod.default_output(src.path, options, OUTPUT)
+
+    def progress(stage: str, fraction: float, message: str) -> None:
+        job.stage, job.fraction, job.message = stage, fraction, message
+
+    def work() -> None:
+        try:
+            lama = _get_lama() if engine in ("auto", "ai") else None
+            res = image_mod.run(src.path, out_path, options, on_progress=progress,
+                                glyph=_get_glyph(), lama=lama)
+            job.result = asdict(res) | {"kind": "image"}
+            job.stage, job.fraction, job.message = "done", 1.0, "Finished"
+        except Exception as exc:
+            job.error = f"{type(exc).__name__}: {exc}"
+            job.message = job.error
+            traceback.print_exc()
+        finally:
+            job.done = True
+
+    threading.Thread(target=work, daemon=True, name=f"job-{job.id}").start()
+    return job.payload()
+
+
 @app.get("/api/job/{job_id}")
 def job_status(job_id: str) -> dict:
     job = _jobs.get(job_id)
@@ -285,7 +390,18 @@ def job_video(job_id: str):
 
 @app.get("/api/source-video/{source_id}")
 def source_video(source_id: str):
-    return FileResponse(_get_source(source_id).path, media_type="video/mp4")
+    src = _get_source(source_id)
+    if src.kind == "image":
+        return FileResponse(src.path)
+    return FileResponse(src.path, media_type="video/mp4")
+
+
+@app.get("/api/image/{job_id}")
+def job_image(job_id: str):
+    job = _jobs.get(job_id)
+    if job is None or not job.result:
+        raise HTTPException(404, "no output for that job yet")
+    return FileResponse(job.result["output"])
 
 
 @app.exception_handler(ffmpegio.FFmpegError)

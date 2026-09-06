@@ -1,8 +1,8 @@
 # unmark — watermark remover & upscaler
 
-Removes the watermark from a video, trims the branded end card, and upscales,
-through a local web UI. Detection is automatic: you point it at a file and press
-one button.
+Removes the watermark from a video or a still image, trims the branded end card,
+and upscales, through a local web UI. Detection is automatic: you point it at a
+file and press one button.
 
 Nothing here is tied to a particular tool. Flow's corner sparkle, a Vizard text
 plate in the middle of the frame, anyone else's logo — if it is static and
@@ -121,6 +121,9 @@ start.bat --keep-watermark 01.mp4 --to 4k   upscale only
 start.bat clip.mp4 --keep-outro         keep the branded end card
 start.bat clip.mp4 --flow-preset        assume Flow's corner if nothing is found
 start.bat --env                         what this machine can do
+start.bat shot.jpeg                     remove the Flow sparkle from a still
+start.bat shot.jpeg --to 4k             clean the still and upscale it
+start.bat --calibrate img/*.jpeg        re-measure the glyph from your own images
 ```
 
 Useful flags: `--engine fast|balanced|ai`, `--quality 14..30` (lower is better),
@@ -212,6 +215,65 @@ Fail any one and the matte is discarded, the fill engine stands alone, and the
 result reports which happened and why. On dark, flat footage it is normally
 rejected — that is the system working, not failing.
 
+## Still images
+
+Video and stills are not the same problem, and unmark does not pretend they are.
+
+An opaque overlay on video **destroys** the pixels underneath, so the video path
+can only ever invent a plausible replacement. Flow's still-image sparkle does
+not destroy anything: it is composited with a **screen** blend,
+
+```
+observed = 1 - (1 - scene)(1 - c)
+```
+
+which is invertible. So the still path *recovers the original pixels* rather
+than inpainting a guess. Running unmark twice over the same image confirms it —
+the second pass reports no watermark, because there is genuinely nothing left.
+
+### How the glyph was measured
+
+Sixteen Flow stills sharing one mark are, to the detector, just a frame stack:
+the sparkle is what stays put while the scenes change. With the mark located,
+the scene beneath it is estimated by diffusing the surrounding pixels inward,
+and the per-pixel coefficient `c` read off as the median across images. The
+result ships in `models/flow_glyph.npz` (11 KB), so you never calibrate anything
+unless you want to — `--calibrate` re-measures from your own images.
+
+Two other blend models were fitted to the same data and rejected. All three
+scored an identical ~11 levels of residual, because that residual is dominated
+by the estimate of the hidden background rather than by the model — so the
+discriminator had to be behaviour at the brightness extremes:
+
+| background | screen | alpha-over-white | additive |
+|---|---|---|---|
+| very dark  | faint ghost | **dark blotch** | moderate ghost |
+| bright     | clean | clean | **dark star** |
+
+### Locating it
+
+The stored margin *predicts* where the mark sits, and a template match only
+refines that when the match is convincing. Searching first is the obvious design
+and it scores 11/16; predicting first scores 16/16. The reason is in the model:
+screen adds `c * (1 - scene)`, so on a bright picture the mark's amplitude
+shrinks toward nothing and loses to ordinary scene texture elsewhere in the
+frame. A weak match is evidence about the *mark*, not about the position.
+
+Confidence therefore leads with an energy test — does unscreening here actually
+make the region smoother? — and discounts template agreement, which reaches ~0.3
+on images carrying no mark at all. Below the threshold unmark reports
+`no Flow watermark found` and writes the image through untouched.
+
+### Known limits
+
+- Measured on 1376x768 stills only. Every sample was that size, so whether Flow
+  places the mark at a fixed pixel offset or a fixed fraction of the frame is
+  **not known**; the template refinement is what absorbs the difference.
+- On very bright backgrounds the mark is nearly invisible (`c * (1 - scene)`
+  tends to zero) and is sometimes skipped as undetectable. Two of the sixteen
+  samples fall here — and in both, there is little visible to remove.
+- Only the Flow sparkle. Other still-image watermarks are not handled yet.
+
 ## End cards
 
 Plenty of tools append a short branded outro. Trimming it is on by default, and
@@ -262,6 +324,8 @@ the hardware you have is the default, not an option to go looking for.
 unmark/
   ffmpegio.py    probing, raw frame streaming, encoder selection
   detect.py      automatic watermark detection
+  glyph.py       the measured Flow sparkle: calibration, locating, unscreening
+  image.py       still-image pipeline: unscreen -> polish -> upscale -> save
   remove.py      fill engines and the alpha matte solve
   upscale.py     resolution planning and Real-ESRGAN
   lama.py        LaMa inpainting
