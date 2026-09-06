@@ -4,6 +4,8 @@
     python -m unmark 01.mp4              detect + remove, same resolution
     python -m unmark 01.mp4 --to 4k      remove and upscale
     python -m unmark --detect 01.mp4     report what it finds, change nothing
+    python -m unmark shot.jpeg           remove the Flow sparkle from a still
+    python -m unmark --calibrate samples/*.jpeg   re-measure the glyph
 """
 from __future__ import annotations
 
@@ -12,8 +14,10 @@ import json
 import sys
 from pathlib import Path
 
+from . import image as image_mod
 from . import upscale as up
 from .detect import detect
+from .glyph import calibrate
 from .ffmpegio import FFmpegError, encoder_report, have_ffmpeg, probe
 from .outro import detect_outro
 from .pipeline import Options, default_output, run
@@ -28,10 +32,36 @@ def _progress(stage: str, fraction: float, message: str) -> None:
         sys.stderr.write("\n")
 
 
+def _run_image(path: str, args, options: Options) -> int:
+    """Clean one still. Returns 1 on failure, 0 otherwise."""
+    out = (Path(args.output) if args.output
+           else image_mod.default_output(path, options))
+    print(f"\n{path}  ->  {out}")
+    try:
+        result = image_mod.run(path, out, options, on_progress=_progress)
+    except (OSError, ValueError) as exc:
+        print(f"  failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"  source: {result.info['width']}x{result.info['height']} still")
+    if result.removed:
+        note = " (plus a polish pass)" if result.polished else ""
+        print(f"  watermark: reversed the screen blend{note}, "
+              f"confidence {result.match['confidence']}")
+    else:
+        print(f"  watermark: {result.reason}")
+    if result.plan:
+        print(f"  {result.plan['out_w']}x{result.plan['out_h']}"
+              f"{' via ' + result.upscaler if result.upscaler else ''}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="unmark",
                                 description="Automatic watermark removal and upscaling.")
-    p.add_argument("input", nargs="*", help="video files (omit to launch the web UI)")
+    p.add_argument("input", nargs="*",
+                   help="video or image files (omit to launch the web UI)")
+    p.add_argument("--calibrate", action="store_true",
+                   help="re-measure the Flow glyph from the given images and store it")
     p.add_argument("-o", "--output", help="output file (single input only)")
     p.add_argument("--to", default="off", choices=list(up.TARGETS),
                    help="upscale target, keyed on the short side (default: off)")
@@ -94,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  end card: {json.dumps(card.to_dict()) if card else 'none'}")
         return 0
 
+    if args.calibrate:
+        glyph = calibrate(args.input)
+        path = glyph.save()
+        print(f"measured the glyph from {glyph.samples} images -> {path}")
+        print(f"  size {glyph.size[0]}x{glyph.size[1]}, peak coefficient "
+              f"{glyph.c.max():.3f}, margin {glyph.margin_x}/{glyph.margin_y}")
+        return 0
+
     if args.output and len(args.input) > 1:
         print("--output only works with a single input file.", file=sys.stderr)
         return 2
@@ -110,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = 0
     for path in args.input:
+        if image_mod.is_image(path):
+            failures += _run_image(path, args, options)
+            continue
         out = Path(args.output) if args.output else default_output(path, options)
         print(f"\n{path}  ->  {out}")
         try:
