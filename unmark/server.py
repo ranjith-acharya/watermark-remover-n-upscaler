@@ -7,6 +7,8 @@ browser polls a small JSON status endpoint for progress.
 from __future__ import annotations
 
 import shutil
+import subprocess
+import sys
 import threading
 import traceback
 import uuid
@@ -216,6 +218,30 @@ def env() -> dict:
 @app.post("/api/open")
 def open_path(path: str = Form(...)) -> dict:
     return _load_source(path).payload()
+
+
+@app.post("/api/open-folder")
+def open_folder(path: str = Form(...)) -> dict:
+    """Reveal an output file in the desktop file manager.
+
+    Restricted to the output directory: the browser can ask for any path, and
+    this endpoint is the one place a request turns into a shell action.
+    """
+    target = Path(path).expanduser().resolve()
+    try:
+        target.relative_to(OUTPUT.resolve())
+    except ValueError:
+        raise HTTPException(400, "only files under the output folder can be revealed")
+    if not target.exists():
+        raise HTTPException(404, "that file is not there any more")
+
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", "/select,", str(target)])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(target.parent)])
+    return {"revealed": str(target)}
 
 
 @app.post("/api/upload")

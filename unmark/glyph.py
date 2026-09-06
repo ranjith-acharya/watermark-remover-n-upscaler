@@ -35,7 +35,6 @@ C_MIN, C_MAX = -0.25, 0.98   # negative captures the soft dark halo round the st
 REFINE_MIN = 0.35            # a match this good may move the box off the prediction
 SEARCH_RADIUS = 28           # how far off the prediction a refinement may look
 DARK_MAX = 70.0              # polish only where the scene is dark enough to ghost
-SCORE_WEIGHT = 0.44          # how far template agreement counts toward confidence
 PAD = 22                     # ROI margin round the glyph, in glyph pixels
 DILATE = 6
 
@@ -76,25 +75,33 @@ class Match:
     h: int
     score: float                   # template agreement, 0..1
     energy: float                  # how much smoother unscreening makes it
+    fit: float = 0.0               # agreement with the blend model itself
     refined: bool = False          # True when a match moved it off the prediction
 
     @property
     def confidence(self) -> float:
-        """Energy leads; template agreement is only corroboration.
+        """How sure we are the mark is here, from the model-fit test.
 
-        Ordinary scene texture correlates with the glyph shape well enough to
-        score around 0.3 on a picture that carries no mark at all, so the
-        template alone cannot be trusted to answer "is it there". The energy
-        test can - it asks whether the inverse actually improves the region -
-        so the score is discounted to the point where it can support a find
-        but never carry one on its own.
+        The two obvious measures both fail on a faint mark. Template agreement
+        reaches ~0.3 on pictures carrying no mark at all, and the energy test
+        needs the mark to contribute enough structure to be worth cancelling -
+        on a bright background screen adds ``c * (1 - scene)``, which tends to
+        nothing, so a real mark can score negative.
+
+        The fit test asks the question directly: is the signal that is actually
+        here shaped like the signal the model predicts? Being a correlation it
+        does not care how faint that signal is, which is exactly the case the
+        others get wrong. Measured over the samples it separates cleanly -
+        every marked image scores at least 0.37, every unmarked one at most
+        0.34 - where energy overlapped badly.
         """
-        return max(0.0, min(1.0, max(self.energy, self.score * SCORE_WEIGHT)))
+        return max(0.0, min(1.0, self.fit))
 
     def to_dict(self) -> dict:
         return {"x": self.x, "y": self.y, "w": self.w, "h": self.h,
                 "score": round(float(self.score), 3),
                 "energy": round(float(self.energy), 3),
+                "fit": round(float(self.fit), 3),
                 "confidence": round(self.confidence, 3), "refined": self.refined}
 
 
@@ -206,6 +213,32 @@ def energy_score(image: np.ndarray, glyph: Glyph, x: int, y: int) -> float:
     return 1.0 - e_after / max(e_before, 1e-6)
 
 
+def fit_score(image: np.ndarray, glyph: Glyph, x: int, y: int) -> float:
+    """How well the signal actually present matches the one the model predicts.
+
+    The scene under the glyph is estimated by diffusing the surrounding pixels
+    inward; what the picture has *added* over that estimate is then correlated
+    against ``c * (1 - scene)``, which is what a screen blend would have added.
+    Correlation ignores amplitude, so a mark too faint for the energy test to
+    notice still answers clearly.
+    """
+    h, w = glyph.c.shape
+    roi = image[y:y + h, x:x + w]
+    if roi.shape[:2] != (h, w):
+        return -1.0
+    sel = glyph.c > 0.02
+    if sel.sum() < 16:
+        return -1.0
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+    clean = _diffuse_fill(gray, sel, iters=300)
+    observed = (gray - clean)[sel]
+    expected = (glyph.c * (1.0 - clean))[sel]
+    if observed.std() < 1e-6 or expected.std() < 1e-6:
+        return -1.0
+    return float(np.corrcoef(observed, expected)[0, 1])
+
+
 def locate(image: np.ndarray, glyph: Glyph, refine: bool = True) -> Match:
     """Work out where the glyph sits in this image.
 
@@ -236,7 +269,8 @@ def locate(image: np.ndarray, glyph: Glyph, refine: bool = True) -> Match:
                 x, y, refined = int(loc[0]) + x0, int(loc[1]) + y0, True
 
     return Match(x=x, y=y, w=w, h=h, score=score,
-                 energy=energy_score(image, glyph, x, y), refined=refined)
+                 energy=energy_score(image, glyph, x, y),
+                 fit=fit_score(image, glyph, x, y), refined=refined)
 
 
 def unscreen(image: np.ndarray, glyph: Glyph, match: Match) -> np.ndarray:

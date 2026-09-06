@@ -130,6 +130,12 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 #progressWrap .row { justify-content: space-between; margin-top: 8px; }
 
 video { width: 100%; max-width: 420px; display: block; margin: 16px auto 0; border-radius: 8px; background: #000; }
+/* A cleaned still can be 4K. Cap it to the card, and to the viewport, so the
+   result section never pushes the page sideways. */
+#resultImage { max-width: 100%; max-height: 70vh; width: auto; height: auto;
+  display: block; margin: 16px auto 0; border-radius: 8px; background: #000;
+  object-fit: contain; }
+.result-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
 
 .footnote {
   color: var(--muted); font-size: 12px; text-align: center;
